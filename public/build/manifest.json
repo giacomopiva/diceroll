@@ -34,8 +34,11 @@
     "isEntry": true
   },
   "resources/js/table.js": {
-    "file": "assets/table-B8NbHrI1.js",
+    "file": "assets/table-4LOGEngx.js",
     "src": "resources/js/table.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_bootstrap-CV6QdLmM.js"
+    ]
   }
 }

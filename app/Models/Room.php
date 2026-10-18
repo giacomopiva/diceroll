@@ -39,6 +39,12 @@ class Room extends Model
         return $this->hasMany(Participant::class);
     }
 
+    /** @return HasMany<Roll, $this> */
+    public function rolls(): HasMany
+    {
+        return $this->hasMany(Roll::class);
+    }
+
     /** Genera un codice xxx-xxx-xxx non ancora in uso. */
     public static function generateCode(): string
     {

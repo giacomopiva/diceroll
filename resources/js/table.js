@@ -1,6 +1,7 @@
-// Interfaccia del tavolo. Per ora il "server" è simulato qui (serverRoll);
-// dalla tappa 4 valori e seed arrivano da Laravel.
-import { SIDES, TYPES } from './dice/geometry.js';
+// Interfaccia del tavolo. I valori e il seed di ogni lancio li decide il server (POST dei dadi,
+// evento DiceRolled per gli altri): il client non propone mai valori, li anima soltanto.
+import './bootstrap';
+import { TYPES } from './dice/geometry.js';
 import { createScene } from './dice/scene.js';
 import { ensureAudio, setSound } from './dice/audio.js';
 import { selfTest } from './dice/selftest.js';
@@ -17,14 +18,6 @@ const ICONS = {
   d20: '<polygon points="12,2 20.7,7 20.7,17 12,22 3.3,17 3.3,7"/><polygon points="12,6.5 17,15 7,15"/>',
 };
 const MAX_DICE = 40;
-
-/* ---------------- "Server" simulato (da sostituire in tappa 4) ---------------- */
-function secureInt(n) {
-  const buf = new Uint32Array(1), lim = Math.floor(0x100000000 / n) * n;
-  do crypto.getRandomValues(buf); while (buf[0] >= lim);
-  return (buf[0] % n) + 1;
-}
-function serverRoll(list) { return { values: list.map((t) => secureInt(SIDES[t])), seed: secureInt(2147483646) }; }
 
 /* ---------------- Scena ---------------- */
 let table = null;
@@ -43,10 +36,8 @@ try {
 if (debug) $('#hud').hidden = false;
 
 /* ---------------- Stato del giocatore e dadi ---------------- */
-const pool = { d4: 1, d6: 1, d8: 1, d10: 1, d12: 1, d20: 1 };
-// Nickname e colore li ha scelti l'ingresso al tavolo (lato server, nei data-attribute del body).
-const me = { name: document.body.dataset.name, color: document.body.dataset.color };
-
+// Si parte con il solo d20 pronto per il lancio.
+const pool = { d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 1 };
 function poolList() { const l = []; for (const t of TYPES) for (let i = 0; i < pool[t]; i++) l.push(t); return l; }
 function formulaOf(list) {
   const c = {}; list.forEach((t) => { c[t] = (c[t] || 0) + 1; });
@@ -69,57 +60,106 @@ function renderPool() {
     box.appendChild(row);
   }
   $('#formula').textContent = total ? formulaOf(poolList()) : 'Aggiungi almeno un dado.';
-  $('#rollBtn').disabled = !total;
+  $('#rollBtn').disabled = !total || rolling;
 }
 
 /* ---------------- Registro e toast ---------------- */
-function esc(s) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function addLogEntry(player, list) {
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function addLogEntry(roll) {
   const log = $('#log');
   const empty = log.querySelector('.empty'); if (empty) empty.remove();
   const li = document.createElement('li');
-  const time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  li.innerHTML = `<span class="dot" style="background:${esc(player.color)}"></span>
-    <div class="meta"><strong>${esc(player.name)}</strong><span>${formulaOf(list)} · ${time}</span></div>
+  const time = new Date(roll.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  li.innerHTML = `<span class="dot" style="background:${esc(roll.player.color)}"></span>
+    <div class="meta"><strong>${esc(roll.player.nickname)}</strong><span>${formulaOf(roll.dice)} · ${time}</span></div>
     <span class="sum">…</span>
     <div class="vals"><span class="pending">in rotolamento</span></div>`;
   log.prepend(li);
   while (log.children.length > 30) log.lastChild.remove();
   return li;
 }
-function fillLogEntry(li, list, values, total, ok) {
-  li.querySelector('.sum').textContent = total;
-  const vals = li.querySelector('.vals');
-  vals.innerHTML = list.map((t, i) => `<span class="chip"><i>${t}</i> ${values[i]}</span>`).join('') +
-    `<span class="check ${ok ? '' : 'bad'}">${ok ? '✓ facce = server' : '✗ faccia diversa dal server'}</span>`;
+// ok === null: lancio dello storico, mai animato qui, quindi niente verifica.
+function fillLogEntry(li, roll, ok) {
+  li.querySelector('.sum').textContent = roll.total;
+  const check = ok === null ? '' : `<span class="check ${ok ? '' : 'bad'}">${ok ? '✓ facce = server' : '✗ faccia diversa dal server'}</span>`;
+  li.querySelector('.vals').innerHTML = roll.dice.map((t, i) => `<span class="chip"><i>${t}</i> ${roll.values[i]}</span>`).join('') + check;
 }
-function showToast(player, list, values, total) {
+function showToast(roll) {
   const t = $('#toast');
-  const detail = list.length > 8 ? formulaOf(list) : list.map((ty, i) => `${ty}: ${values[i]}`).join(' · ');
-  t.innerHTML = `<div class="who"><span class="dot" style="background:${esc(player.color)}"></span>${esc(player.name)}</div>
-    <div class="detail">${detail}</div><div class="total">${total}</div>`;
+  const detail = roll.dice.length > 8 ? formulaOf(roll.dice) : roll.dice.map((ty, i) => `${ty}: ${roll.values[i]}`).join(' · ');
+  t.innerHTML = `<div class="who"><span class="dot" style="background:${esc(roll.player.color)}"></span>${esc(roll.player.nickname)}</div>
+    <div class="detail">${detail}</div><div class="total">${roll.total}</div>`;
+  t.hidden = false;
+}
+function showMessage(text) {
+  const t = $('#toast');
+  t.innerHTML = `<div class="detail">${esc(text)}</div>`;
   t.hidden = false;
 }
 
-/* ---------------- Lancio ---------------- */
-function roll(player, list, { withSound = false } = {}) {
-  if (!list.length) return;
-  if (withSound) ensureAudio();
-  const server = serverRoll(list);
-  const entry = addLogEntry(player, list);
+/* ---------------- Lanci: coda di riproduzione ---------------- */
+// Un solo lancio alla volta sulla scena: quelli che arrivano mentre i dadi rotolano aspettano il loro turno.
+const handled = new Set(); // id dei lanci già visti (storico, risposta HTTP, evento)
+const queue = [];
+let playing = false;
+
+function enqueue(roll) {
+  if (handled.has(roll.id)) return;
+  handled.add(roll.id);
+  queue.push(roll);
+  playNext();
+}
+
+function playNext() {
+  if (playing || !queue.length) return;
+  playing = true;
+  const roll = queue.shift();
+  const entry = addLogEntry(roll);
   $('#toast').hidden = true;
   table.play({
-    color: player.color, list, values: server.values, seed: server.seed,
+    color: roll.player.color, list: roll.dice, values: roll.values, seed: roll.seed,
     onDone(seen) {
-      const ok = seen.every((v, i) => v === server.values[i]);
-      const total = server.values.reduce((x, y) => x + y, 0);
-      fillLogEntry(entry, list, server.values, total, ok);
-      showToast(player, list, server.values, total);
+      fillLogEntry(entry, roll, seen.every((v, i) => v === roll.values[i]));
+      showToast(roll);
+      playing = false;
+      playNext();
     },
   });
 }
 
-function rollMine() { roll({ name: me.name, color: me.color }, poolList(), { withSound: true }); }
+for (const roll of JSON.parse($('#history').textContent)) {
+  handled.add(roll.id);
+  fillLogEntry(addLogEntry(roll), roll, null);
+}
+
+window.Echo.channel('table.' + document.body.dataset.room).listen('DiceRolled', enqueue);
+
+/* ---------------- Lancio mio ---------------- */
+let rolling = false;
+async function rollDice(list) {
+  if (!list.length || rolling) return;
+  rolling = true;
+  $('#rollBtn').disabled = true;
+  ensureAudio();
+  try {
+    // Il corpo contiene solo i tipi di dado: valori e seed li decide il server.
+    const { data } = await window.axios.post(document.body.dataset.rollsUrl, { dice: list }, {
+      headers: { 'X-Socket-ID': window.Echo.socketId() },
+    });
+    enqueue(data);
+  } catch (e) {
+    const status = e.response && e.response.status;
+    if (status === 403) location.reload(); // sessione scaduta: torna il form di ingresso
+    else if (status === 422) showMessage('Lancio non valido.');
+    else if (status === 429) showMessage('Troppi lanci, aspetta un momento.');
+    else showMessage('Non riesco a lanciare, riprova.');
+  } finally {
+    rolling = false;
+    renderPool();
+  }
+}
+
+const rollMine = () => rollDice(poolList());
 $('#rollBtn').addEventListener('click', rollMine);
 document.addEventListener('keydown', (e) => {
   if (e.code !== 'Space' || e.repeat) return;
@@ -127,18 +167,14 @@ document.addEventListener('keydown', (e) => {
   if (tag === 'input' || tag === 'button' || tag === 'textarea') return;
   e.preventDefault(); rollMine();
 });
-$('#remoteBtn').addEventListener('click', () => {
-  const options = [['d20'], ['d20', 'd4'], ['d6', 'd6'], ['d8', 'd6'], ['d12'], ['d20', 'd20']];
-  const list = options[secureInt(options.length) - 1];
-  const color = me.color === '#1f8a5b' ? '#7a3fb0' : '#1f8a5b';
-  roll({ name: 'Elara', color }, list, { withSound: true });
-});
-$('#stressBtn').addEventListener('click', () => {
-  const list = [];
-  for (let i = 0; i < 30; i++) list.push(TYPES[secureInt(TYPES.length) - 1]);
-  list.sort((a, b) => TYPES.indexOf(a) - TYPES.indexOf(b));
-  roll({ name: me.name, color: me.color }, list, { withSound: true });
-});
+const stress = $('#stressBtn');
+if (stress) {
+  stress.addEventListener('click', () => {
+    const list = Array.from({ length: 30 }, () => TYPES[Math.floor(Math.random() * TYPES.length)]);
+    list.sort((a, b) => TYPES.indexOf(a) - TYPES.indexOf(b));
+    rollDice(list);
+  });
+}
 $('#soundBtn').addEventListener('click', (e) => {
   const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
   setSound(on);
@@ -161,6 +197,5 @@ async function boot() {
   try { await Promise.race([document.fonts.load('800 40px "Alegreya Sans"'), new Promise((r) => setTimeout(r, 2000))]); } catch (e) {}
   $('#loading').hidden = true;
   renderPool();
-  roll({ name: me.name, color: me.color }, poolList());
 }
 boot();

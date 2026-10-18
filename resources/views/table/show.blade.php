@@ -5,7 +5,7 @@
 @endpush
 
 @section('body')
-<body data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room-url="{{ route('table.show', $room) }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
+<body data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
 <div class="app">
   <header class="bar">
     <div class="brand">Tavolo dei Dadi <small>tavolo {{ $room->code }}</small></div>
@@ -37,13 +37,14 @@
     </section>
 
     <section>
-      <h2>Prove</h2>
+      <h2>Opzioni</h2>
       <div class="row">
-        <button class="btn" id="remoteBtn" type="button">Lancio di Elara (simulato)</button>
+        @if (app()->environment('local'))
         <button class="btn" id="stressBtn" type="button">Stress test: 30 dadi</button>
+        @endif
         <button class="btn" id="soundBtn" type="button" aria-pressed="true">Suono: sì</button>
       </div>
-      <p class="note">Per ora il "server" è ancora simulato nel browser con <code>crypto.getRandomValues</code>. Dalla tappa 4 i valori e il seed arrivano da Laravel. La spunta verde conferma che la faccia in alto coincide col valore deciso.</p>
+      <p class="note">Il risultato di ogni lancio lo decide il server. La spunta verde nel registro conferma che la faccia in alto del dado disegnato coincide col valore del server.</p>
     </section>
 
     <section>
@@ -52,5 +53,6 @@
     </section>
   </aside>
 </div>
+<script type="application/json" id="history">@json($history, JSON_HEX_TAG | JSON_HEX_AMP)</script>
 </body>
 @endsection

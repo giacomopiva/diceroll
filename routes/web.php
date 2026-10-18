@@ -22,6 +22,8 @@ Route::get('/t/{room}', [App\Http\Controllers\Table\TableController::class, 'sho
     ->where('room', App\Models\Room::CODE_PATTERN)->name('table.show');
 Route::post('/t/{room}/join', [App\Http\Controllers\Table\TableController::class, 'join'])
     ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:20,1')->name('table.join');
+Route::post('/t/{room}/rolls', [App\Http\Controllers\Table\RollController::class, 'store'])
+    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:60,1')->name('table.rolls.store');
 
 Route::get('/welcome', function () {
     return view('welcome');

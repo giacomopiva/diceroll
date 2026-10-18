@@ -24,7 +24,11 @@ class TableController extends Controller
 
         $this->rooms->markSeen($participant);
 
-        return view('table.show', ['room' => $room, 'participant' => $participant]);
+        // Ultimi lanci per chi entra a partita iniziata, dal più vecchio al più recente.
+        $history = $room->rolls()->with('participant')->latest('id')->limit(30)->get()
+            ->reverse()->values()->map(fn ($roll) => $roll->toPayload());
+
+        return view('table.show', ['room' => $room, 'participant' => $participant, 'history' => $history]);
     }
 
     public function join(JoinRoomRequest $request, Room $room): RedirectResponse
