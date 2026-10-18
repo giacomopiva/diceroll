@@ -21,12 +21,12 @@
     ]
   },
   "resources/js/join.js": {
-    "file": "assets/join-DzHIUJ6y.js",
+    "file": "assets/join-CzxJxoU2.js",
     "src": "resources/js/join.js",
     "isEntry": true
   },
   "resources/js/table.js": {
-    "file": "assets/table-DWW77Qlr.js",
+    "file": "assets/table-eT-B8SLs.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [
