@@ -1,6 +1,6 @@
 {
-  "_echo-mogN8efM.js": {
-    "file": "assets/echo-mogN8efM.js"
+  "_echo-B1nH64_W.js": {
+    "file": "assets/echo-B1nH64_W.js"
   },
   "resources/css/app.css": {
     "file": "assets/app-CsdbagXp.css",
@@ -13,11 +13,11 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-CcHL4ySE.js",
+    "file": "assets/app-DIE5TuPy.js",
     "src": "resources/js/app.js",
     "isEntry": true,
     "imports": [
-      "_echo-mogN8efM.js"
+      "_echo-B1nH64_W.js"
     ]
   },
   "resources/js/join.js": {
@@ -26,11 +26,11 @@
     "isEntry": true
   },
   "resources/js/table.js": {
-    "file": "assets/table-BBjeX6UF.js",
+    "file": "assets/table-VNW2yPsW.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [
-      "_echo-mogN8efM.js"
+      "_echo-B1nH64_W.js"
     ]
   }
 }
