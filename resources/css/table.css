@@ -102,3 +102,10 @@ input[type=text]{width:100%;background:var(--panel-2);border:1px solid var(--lin
   .toast .total{font-size:1.6rem}
 }
 @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+
+/* Pagine d'ingresso (home e join): una scheda centrata sul fondo scuro. */
+body.plain{display:grid;place-items:center;height:auto;min-height:100%}
+.card{width:min(100%,420px);display:flex;flex-direction:column;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.err{margin:0;font-size:.9rem;color:var(--bad)}
+.who{display:flex;align-items:center;gap:8px;font-weight:700}

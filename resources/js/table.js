@@ -1,4 +1,4 @@
-// Interfaccia del tavolo. In tappa 2 il "server" è simulato qui (serverRoll);
+// Interfaccia del tavolo. Per ora il "server" è simulato qui (serverRoll);
 // dalla tappa 4 valori e seed arrivano da Laravel.
 import { SIDES, TYPES } from './dice/geometry.js';
 import { createScene } from './dice/scene.js';
@@ -8,11 +8,6 @@ import { selfTest } from './dice/selftest.js';
 const $ = (s) => document.querySelector(s);
 const debug = document.body.dataset.debug === '1';
 
-const PRESETS = [
-  { name: 'Rubino', hex: '#b3243a' }, { name: 'Zaffiro', hex: '#2457b3' }, { name: 'Smeraldo', hex: '#1f8a5b' },
-  { name: 'Ametista', hex: '#7a3fb0' }, { name: 'Osso', hex: '#e8dcc0' }, { name: 'Ossidiana', hex: '#2a2d33' },
-  { name: 'Oro', hex: '#d9a72e' }, { name: 'Ghiaccio', hex: '#9fd3e6' },
-];
 const ICONS = {
   d4: '<polygon points="12,3 21,20 3,20"/>',
   d6: '<rect x="4.5" y="4.5" width="15" height="15" rx="1.5"/>',
@@ -49,35 +44,8 @@ if (debug) $('#hud').hidden = false;
 
 /* ---------------- Stato del giocatore e dadi ---------------- */
 const pool = { d4: 1, d6: 1, d8: 1, d10: 1, d12: 1, d20: 1 };
-const me = { name: 'Giacomo', color: PRESETS[0].hex };
-try { const saved = JSON.parse(localStorage.getItem('tavolo-dadi') || 'null'); if (saved) { if (saved.name) me.name = saved.name; if (saved.color) me.color = saved.color; } } catch (e) {}
-function save() { try { localStorage.setItem('tavolo-dadi', JSON.stringify(me)); } catch (e) {} }
-
-const nick = $('#nick');
-nick.value = me.name;
-nick.addEventListener('input', () => { me.name = nick.value.trim() || 'Giocatore'; save(); });
-
-function renderSwatches() {
-  const box = $('#swatches');
-  box.innerHTML = '';
-  for (const p of PRESETS) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'sw'; b.style.background = p.hex; b.title = p.name;
-    b.setAttribute('aria-label', 'Dadi ' + p.name);
-    b.setAttribute('aria-pressed', String(p.hex === me.color));
-    b.addEventListener('click', () => { me.color = p.hex; save(); renderSwatches(); });
-    box.appendChild(b);
-  }
-  const custom = document.createElement('label');
-  custom.className = 'custom'; custom.title = 'Colore libero';
-  const isCustom = !PRESETS.some((p) => p.hex === me.color);
-  if (isCustom) { custom.style.background = me.color; custom.style.borderStyle = 'solid'; custom.style.borderColor = 'var(--brass)'; }
-  custom.innerHTML = '<input type="color" id="colorCustom" aria-label="Scegli un colore libero"><span>' + (isCustom ? '' : '+') + '</span>';
-  const inp = custom.querySelector('input');
-  inp.value = me.color;
-  inp.addEventListener('change', () => { me.color = inp.value; save(); renderSwatches(); });
-  box.appendChild(custom);
-}
+// Nickname e colore li ha scelti l'ingresso al tavolo (lato server, nei data-attribute del body).
+const me = { name: document.body.dataset.name, color: document.body.dataset.color };
 
 function poolList() { const l = []; for (const t of TYPES) for (let i = 0; i < pool[t]; i++) l.push(t); return l; }
 function formulaOf(list) {
@@ -178,15 +146,13 @@ $('#soundBtn').addEventListener('click', (e) => {
   e.currentTarget.textContent = 'Suono: ' + (on ? 'sì' : 'no');
 });
 
-// Segnaposto del link stanza: in tappa 3 arriva il codice vero.
-const code = () => Array.from({ length: 3 }, () => 'abcdefghjkmnpqrstuvwxyz23456789'[secureInt(31) - 1]).join('');
-const roomUrl = `${location.host}/t/${code()}-${code()}-${code()}`;
-$('#roomUrl').textContent = roomUrl;
+const roomUrl = document.body.dataset.roomUrl;
+$('#roomUrl').textContent = roomUrl.replace(/^https?:\/\//, '');
 $('#copyRoom').addEventListener('click', (e) => {
   const btn = e.currentTarget;
   const done = () => { btn.textContent = 'Copiato'; setTimeout(() => { btn.textContent = 'Copia'; }, 1600); };
   const fallback = () => { const r = document.createRange(); r.selectNodeContents($('#roomUrl')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
-  try { navigator.clipboard.writeText(location.protocol + '//' + roomUrl).then(done, fallback); } catch (err) { fallback(); }
+  try { navigator.clipboard.writeText(roomUrl).then(done, fallback); } catch (err) { fallback(); }
 });
 
 if (debug) window.__tavolo = { selfTest };
@@ -194,7 +160,6 @@ if (debug) window.__tavolo = { selfTest };
 async function boot() {
   try { await Promise.race([document.fonts.load('800 40px "Alegreya Sans"'), new Promise((r) => setTimeout(r, 2000))]); } catch (e) {}
   $('#loading').hidden = true;
-  renderSwatches();
   renderPool();
   roll({ name: me.name, color: me.color }, poolList());
 }

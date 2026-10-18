@@ -11,9 +11,17 @@ use Lab404\Impersonate\Controllers\ImpersonateController;
 /**
  * Rotte utente non autenticato
  */
-Route::get('/', function () {
-    return view('flex-home');
-})->name('home');
+Route::get('/', [App\Http\Controllers\Table\HomeController::class, 'index'])->name('home');
+
+/**
+ * Tavolo dei dadi: stanze usa-e-getta raggiungibili dal link, senza account.
+ */
+Route::post('/rooms', [App\Http\Controllers\Table\HomeController::class, 'store'])
+    ->middleware('throttle:20,1')->name('rooms.store');
+Route::get('/t/{room}', [App\Http\Controllers\Table\TableController::class, 'show'])
+    ->where('room', App\Models\Room::CODE_PATTERN)->name('table.show');
+Route::post('/t/{room}/join', [App\Http\Controllers\Table\TableController::class, 'join'])
+    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:20,1')->name('table.join');
 
 Route::get('/welcome', function () {
     return view('welcome');
@@ -103,7 +111,6 @@ Route::middleware(['auth', 'role:user', 'status'])->prefix('user')->name('user.'
  */
 if (app()->environment('local')) {
     Route::get('/dev/ping', fn () => view('dev.ping'));
-    Route::get('/dev/tavolo', fn () => view('dev.tavolo'));
     Route::post('/dev/ping', function (Request $request) {
         PingEvent::dispatch((string) $request->input('message', 'ping'));
 
