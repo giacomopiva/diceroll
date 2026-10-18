@@ -10,6 +10,7 @@ use ESolution\DBEncryption\Encrypter;
 use Illuminate\Foundation\Auth\ResetsPasswords;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Redirect;
 
@@ -99,6 +100,6 @@ class ResetPasswordController extends Controller
 
         // Carbon::diffInMinutes() ritorna un valore con segno (non assoluto) a partire
         // da Carbon 3: usare addMinutes()->isPast() evita ambiguità sul verso del confronto.
-        return \Illuminate\Support\Carbon::parse($createdAt)->addMinutes($expireMinutes)->isPast();
+        return Carbon::parse($createdAt)->addMinutes($expireMinutes)->isPast();
     }
 }

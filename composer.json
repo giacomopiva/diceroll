@@ -13,6 +13,7 @@
         "elgibor-solution/laravel-database-encryption": "^1.1",
         "lab404/laravel-impersonate": "^1.7",
         "laravel/framework": "^13.0",
+        "laravel/reverb": "^1.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "laravel/ui": "^4.6",

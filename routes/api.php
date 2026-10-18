@@ -13,7 +13,7 @@ Route::prefix('v1')->name('v1')->group(function () {
         return response()->json([
             'app_name' => config('app.name'),
             'env' => config('app.env'),
-            'api' => 'v1'
+            'api' => 'v1',
         ]);
     });
 

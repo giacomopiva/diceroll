@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\StatusMiddleware;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
@@ -12,7 +13,7 @@ beforeEach(function () {
     Role::create(['name' => 'user', 'guard_name' => 'web']);
 
     // Rotta di test protetta dallo StatusMiddleware
-    Route::middleware(['web', 'auth', \App\Http\Middleware\StatusMiddleware::class])
+    Route::middleware(['web', 'auth', StatusMiddleware::class])
         ->get('/test-status-route', fn () => response('OK', 200));
 });
 

@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Services\RegisterService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -23,7 +24,7 @@ test('storeUser crea utente con i dati corretti', function () {
 
     expect($user)->toBeInstanceOf(User::class);
     expect($user->id)->not->toBeNull();
-    expect(\Illuminate\Support\Facades\Hash::check('password123', $user->password))->toBeTrue();
+    expect(Hash::check('password123', $user->password))->toBeTrue();
     $this->assertDatabaseHas('users', ['id' => $user->id]);
 });
 

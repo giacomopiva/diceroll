@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Services\UserService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
@@ -23,7 +24,7 @@ test('storeUser crea un nuovo utente con password hashata', function () {
 
     expect($user)->toBeInstanceOf(User::class);
     expect($user->id)->not->toBeNull();
-    expect(\Illuminate\Support\Facades\Hash::check('password123', $user->password))->toBeTrue();
+    expect(Hash::check('password123', $user->password))->toBeTrue();
     $this->assertDatabaseHas('users', ['id' => $user->id]);
 });
 
@@ -53,12 +54,12 @@ test('updateUser aggiorna la password se fornita', function () {
     ]);
 
     $user->refresh();
-    expect(\Illuminate\Support\Facades\Hash::check('nuovapassword', $user->password))->toBeTrue();
+    expect(Hash::check('nuovapassword', $user->password))->toBeTrue();
 });
 
 test('updateUser non cambia la password se stringa vuota', function () {
     $service = new UserService;
-    $user = User::factory()->create(['password' => \Illuminate\Support\Facades\Hash::make('originale')]);
+    $user = User::factory()->create(['password' => Hash::make('originale')]);
     $originalHash = $user->password;
 
     $service->updateUser($user, [

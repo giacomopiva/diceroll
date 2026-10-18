@@ -11,6 +11,7 @@ use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
@@ -135,13 +136,12 @@ class UserController extends AdminController
 
     /**
      * Gestione delle azioni personalizzate.
-     * 
+     *
      * list(): Gestisce la Datatable AJAX
      * showImport(): Mostra il form per l'importazione degli utenti
      * import(): Importa gli utenti da un file Excel
      * exportToExcel(): Esporta gli utenti in un file Excel
      * print(): Stampa una scheda informativa sull'utente
-     *  
      */
 
     /**
@@ -155,10 +155,10 @@ class UserController extends AdminController
 
         return DataTables::of($users)
             ->addColumn('actions', function ($user) {
-                $editUrl  = route('admin.user.edit', $user->id);
+                $editUrl = route('admin.user.edit', $user->id);
                 $printUrl = route('admin.user.print', $user->id);
 
-                $buttons  = '<div class="d-flex gap-1">';
+                $buttons = '<div class="d-flex gap-1">';
                 $buttons .= '<a href="'.$editUrl.'" class="btn btn-sm btn-primary" title="Modifica">';
                 $buttons .= '<i class="ti ti-edit me-1"></i>Modifica</a>';
 
@@ -223,7 +223,7 @@ class UserController extends AdminController
      * Stampa una scheda informativa sull'utente.
      *
      * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @return Response
      */
     public function print(User $user)
     {

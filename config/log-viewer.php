@@ -1,5 +1,8 @@
 <?php
 
+use Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer;
+use Opcodes\LogViewer\Http\Middleware\EnsureFrontendRequestsAreStateful;
+
 return [
 
     /*
@@ -46,8 +49,8 @@ return [
     |
     */
 
-    #'back_to_system_url' => config('app.url', null),
-    'back_to_system_url' => config('app.url', null) . '/admin',
+    // 'back_to_system_url' => config('app.url', null),
+    'back_to_system_url' => config('app.url', null).'/admin',
 
     'back_to_system_label' => null, // Displayed by default: "Back to {{ app.name }}"
 
@@ -72,7 +75,7 @@ return [
 
     'middleware' => [
         'web',
-        \Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer::class,
+        AuthorizeLogViewer::class,
     ],
 
     /*
@@ -85,8 +88,8 @@ return [
     */
 
     'api_middleware' => [
-        \Opcodes\LogViewer\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        \Opcodes\LogViewer\Http\Middleware\AuthorizeLogViewer::class,
+        EnsureFrontendRequestsAreStateful::class,
+        AuthorizeLogViewer::class,
     ],
 
     /*

@@ -15,4 +15,3 @@ test('getStatuses returns available statuses', function () {
         0 => 'Disattivo',
     ]);
 });
-

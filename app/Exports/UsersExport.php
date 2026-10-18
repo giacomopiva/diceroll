@@ -11,7 +11,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
-class UsersExport implements FromCollection, ShouldAutoSize, /*WithColumnFormatting,*/ WithHeadings, WithMapping
+class UsersExport implements FromCollection, ShouldAutoSize, /* WithColumnFormatting, */ WithHeadings, WithMapping
 {
     /**
      * Get the data collection to export.

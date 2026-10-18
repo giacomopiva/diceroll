@@ -2,7 +2,6 @@
 
 use App\Mail\ResetPasswordMail;
 use App\Models\User;
-use ESolution\DBEncryption\Encrypter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
