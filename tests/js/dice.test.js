@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { PROTOS, SIDES, TYPES, resultFace, symmetryQuat } from '../../resources/js/dice/geometry.js';
-import { MAX_STEPS, TRAY, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
+import { MAX_STEPS, TRAY, insideTray, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
 import { selfTest } from '../../resources/js/dice/selftest.js';
 
 const frameOf = (sim, i, step) => {
@@ -26,6 +26,19 @@ describe.each(TYPES)('geometria %s', (type) => {
   it('assegna ogni valore 1..n a una faccia, una volta sola', () => {
     const values = proto.faces.map((f) => f.value).sort((a, b) => a - b);
     expect(values).toEqual(Array.from({ length: SIDES[type] }, (_, i) => i + 1));
+  });
+
+  it('il centro del numero sta dentro ogni faccia, lontano dai lati', () => {
+    for (const f of proto.faces) {
+      const { u, v, r } = f.inc;
+      expect(r, `faccia ${f.value}`).toBeGreaterThan(0.2);
+      const n = f.uv.length;
+      for (let i = 0; i < n; i++) {
+        const [ax, ay] = f.uv[i], [bx, by] = f.uv[(i + 1) % n];
+        const d = Math.abs((u - ax) * (by - ay) - (v - ay) * (bx - ax)) / Math.hypot(bx - ax, by - ay);
+        expect(d, `faccia ${f.value}, lato ${i}`).toBeGreaterThanOrEqual(r - 1e-4);
+      }
+    }
   });
 
   it('le facce opposte sommano a n+1 (dove esistono)', () => {
@@ -92,16 +105,29 @@ describe('simulazione e orientamento', () => {
     }
   }, 60000);
 
-  it('i dadi restano dentro la vaschetta', () => {
-    const list = Array(40).fill('d6');
-    const sim = simulate(list, 31337);
-    list.forEach((_, i) => {
-      const { p } = frameOf(sim, i, sim.steps - 1);
-      expect(Math.abs(p.x)).toBeLessThanOrEqual(TRAY.W / 2);
-      expect(Math.abs(p.z)).toBeLessThanOrEqual(TRAY.D / 2);
-      expect(p.y).toBeGreaterThan(0);
-    });
-  }, 30000);
+  it('la vaschetta è un esagono regolare', () => {
+    expect(TRAY.A).toBeCloseTo(TRAY.R * Math.sqrt(3) / 2);
+    for (let k = 0; k < 6; k++) {
+      const a = k * Math.PI / 3; // vertici
+      expect(insideTray(TRAY.R * Math.cos(a) * 0.999, TRAY.R * Math.sin(a) * 0.999)).toBe(true);
+      expect(insideTray(TRAY.R * Math.cos(a) * 1.01, TRAY.R * Math.sin(a) * 1.01)).toBe(false);
+    }
+    // Gli angoli del vecchio rettangolo 18 × 12,5 cadono fuori.
+    expect(insideTray(8.9, 6.1)).toBe(false);
+  });
+
+  it('i dadi partono e restano dentro la vaschetta', () => {
+    for (const seed of [31337, 7, 123456]) {
+      const list = Array(40).fill('d6');
+      const sim = simulate(list, seed);
+      list.forEach((_, i) => {
+        const start = frameOf(sim, i, 0).p, end = frameOf(sim, i, sim.steps - 1).p;
+        expect(insideTray(start.x, start.z, 0.9), `partenza dado ${i}, seed ${seed}`).toBe(true);
+        expect(insideTray(end.x, end.z), `arrivo dado ${i}, seed ${seed}`).toBe(true);
+        expect(end.y).toBeGreaterThan(0);
+      });
+    }
+  }, 60000);
 
   it('selfTest: 150 lanci con valori casuali, 0 discrepanze', () => {
     const out = selfTest(150, mulberry32(20261018));

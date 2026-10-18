@@ -32,6 +32,8 @@ Route::prefix('/t/{room}')->where(['room' => Room::CODE_PATTERN])
             ->middleware('throttle:30,1')->name('heartbeat');
         Route::post('/leave', [PresenceController::class, 'leave'])
             ->middleware('throttle:30,1')->name('leave');
+        Route::post('/exit', [TableController::class, 'exit'])
+            ->middleware('throttle:20,1')->name('exit');
     });
 
 Route::get('/welcome', function () {

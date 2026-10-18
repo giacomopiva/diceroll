@@ -5,14 +5,23 @@ import { PROTOS, resultFace, symmetryQuat } from './geometry.js';
 
 export const DT = 1 / 60;
 export const MAX_STEPS = 60 * 7;
-// Vaschetta di dimensioni fisse, uguali per tutti i client: stesso seed, stessa traiettoria.
-export const TRAY = { W: 18, D: 12.5 };
+// Vaschetta esagonale di dimensioni fisse, uguali per tutti i client: stesso seed, stessa traiettoria.
+// R è la distanza centro-vertice (vertici sull'asse x, lati piatti in alto e in basso), A l'apotema.
+const HEX_R = 9.2;
+export const TRAY = { R: HEX_R, A: HEX_R * Math.sqrt(3) / 2 };
+// Direzioni (nel piano xz) dal centro verso il centro di ogni lato.
+export const TRAY_SIDES = Array.from({ length: 6 }, (_, k) => Math.PI / 6 + k * Math.PI / 3);
+
+/** Il punto (x, z) sta dentro la vaschetta, a distanza almeno `margin` dalle pareti? */
+export function insideTray(x, z, margin = 0) {
+  return TRAY_SIDES.every((a) => x * Math.cos(a) + z * Math.sin(a) <= TRAY.A - margin + 1e-6);
+}
 
 export function mulberry32(a) {
   return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-export function simulate(list, seed, W = TRAY.W, D = TRAY.D) {
+export function simulate(list, seed) {
   const rng = mulberry32(seed);
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -55, 0), allowSleep: true });
   world.solver.iterations = 10;
@@ -23,13 +32,17 @@ export function simulate(list, seed, W = TRAY.W, D = TRAY.D) {
 
   const floor = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: mFloor });
   floor.quaternion.setFromEuler(-Math.PI / 2, 0, 0); floor.kind = 'floor'; world.addBody(floor);
-  for (const [x, z, ry] of [[-W / 2, 0, Math.PI / 2], [W / 2, 0, -Math.PI / 2], [0, -D / 2, 0], [0, D / 2, Math.PI]]) {
+  for (const a of TRAY_SIDES) {
+    // Il piano ha la normale su +z locale: la giro verso il centro, (-cos a, 0, -sin a).
     const wall = new CANNON.Body({ mass: 0, shape: new CANNON.Plane(), material: mWall });
-    wall.position.set(x, 0, z); wall.quaternion.setFromEuler(0, ry, 0); wall.kind = 'wall'; world.addBody(wall);
+    wall.position.set(TRAY.A * Math.cos(a), 0, TRAY.A * Math.sin(a));
+    wall.quaternion.setFromEuler(0, Math.atan2(-Math.cos(a), -Math.sin(a)), 0);
+    wall.kind = 'wall'; world.addBody(wall);
   }
 
+  // Partenza da un lato, in colonne verso il centro: dove l'esagono si stringe verso il vertice non ci si spinge.
   const side = rng() < 0.5 ? -1 : 1;
-  const zSpread = Math.min(2.3, (D - 2.6) / 3);
+  const zSpread = 2.3, D = 2 * TRAY.A;
   let step = 0;
   const sounds = [];
   const bodies = list.map((type, i) => {
@@ -38,7 +51,7 @@ export function simulate(list, seed, W = TRAY.W, D = TRAY.D) {
     const b = new CANNON.Body({ mass: 1, shape, material: mDie, linearDamping: 0.1, angularDamping: 0.12, sleepSpeedLimit: 0.25, sleepTimeLimit: 0.35 });
     const layer = Math.floor(i / 12), r = i % 12, col = r % 3, row = Math.floor(r / 3);
     const z = (list.length <= 3 ? (rng() - 0.5) * D * 0.4 : (row - 1.5) * zSpread) + (rng() - 0.5) * 0.4;
-    b.position.set(side * (W / 2 - 1.4 - col * 2.3), 2.2 + layer * 2.4 + rng() * 0.6, z);
+    b.position.set(side * (TRAY.R * 0.6 - col * 2.3), 2.2 + layer * 2.4 + rng() * 0.6, z);
     const u1 = rng(), u2 = rng(), u3 = rng(), s1 = Math.sqrt(1 - u1), s2 = Math.sqrt(u1);
     b.quaternion.set(s1 * Math.sin(2 * Math.PI * u2), s1 * Math.cos(2 * Math.PI * u2), s2 * Math.sin(2 * Math.PI * u3), s2 * Math.cos(2 * Math.PI * u3));
     b.velocity.set(-side * (13 + rng() * 9), 1 + rng() * 3, (rng() - 0.5) * 9 - z * 0.5);

@@ -14,6 +14,10 @@
       <span>Link del tavolo</span>
       <code id="roomUrl">…</code>
       <button class="btn" id="copyRoom" type="button">Copia</button>
+      <form method="post" action="{{ route('table.exit', $room) }}" id="exitForm">
+        @csrf
+        <button class="btn exit" type="submit">Esci</button>
+      </form>
     </div>
   </header>
 

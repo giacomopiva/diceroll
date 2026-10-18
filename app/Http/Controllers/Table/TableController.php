@@ -42,4 +42,15 @@ class TableController extends Controller
 
         return redirect()->route('table.show', $room);
     }
+
+    /** Uscita con il bottone "Esci": via dalla lista e il browser non è più un partecipante. */
+    public function exit(Request $request, Room $room): RedirectResponse
+    {
+        if ($participant = $this->rooms->currentParticipant($room, $request)) {
+            $this->presence->leave($participant);
+            $this->rooms->forget($room, $request);
+        }
+
+        return redirect()->route('home')->with('left_room', $room->code);
+    }
 }

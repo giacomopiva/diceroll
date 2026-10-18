@@ -95,6 +95,37 @@ function faceFrame(proto, f) {
   else up = pts[dists.findIndex((d) => d > R - 1e-4)].clone().normalize(); // verso il vertice più lontano
   const right = new THREE.Vector3().crossVectors(up, f.n);
   f.uv = pts.map((p) => [0.5 + p.dot(right) / (2 * R), 0.5 + p.dot(up) / (2 * R)]);
+  f.inc = incircle(f.uv);
+}
+
+// Cerchio più grande dentro il poligono (in coordinate UV): è lì che va il numero.
+// Sul d10 il centro dell'aquilone non coincide con la media dei vertici, sugli altri sì.
+function incircle(poly) {
+  const n = poly.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) { const [ax, ay] = poly[i], [bx, by] = poly[(i + 1) % n]; area += ax * by - bx * ay; }
+  const sign = area > 0 ? -1 : 1; // distanza positiva verso l'interno, qualunque sia il verso dei vertici
+  const dist = (x, y) => {
+    let m = Infinity;
+    for (let i = 0; i < n; i++) {
+      const [ax, ay] = poly[i], [bx, by] = poly[(i + 1) % n];
+      const ex = bx - ax, ey = by - ay;
+      m = Math.min(m, sign * ((x - ax) * ey - (y - ay) * ex) / Math.hypot(ex, ey));
+    }
+    return m;
+  };
+  let u = poly.reduce((a, p) => a + p[0], 0) / n, v = poly.reduce((a, p) => a + p[1], 0) / n;
+  let r = dist(u, v);
+  for (let step = 0.05; step > 1e-5; step /= 2) {
+    for (let moved = true, guard = 0; moved && guard < 200; guard++) {
+      moved = false;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const d = dist(u + dx * step, v + dy * step);
+        if (d > r + 1e-9) { u += dx * step; v += dy * step; r = d; moved = true; }
+      }
+    }
+  }
+  return { u, v, r };
 }
 
 function atlasLayout(n) { const cols = Math.ceil(Math.sqrt(n)); return { cols, rows: Math.ceil(n / cols) }; }

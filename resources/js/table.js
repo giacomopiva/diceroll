@@ -144,11 +144,16 @@ channel.listen('ParticipantLeft', (p) => {
 });
 
 const heartbeat = () => window.axios.post(document.body.dataset.heartbeatUrl).catch((e) => {
-  if (e.response && e.response.status === 410) location.reload(); // tavolo scaduto: la pagina lo spiega
+  // 410: tavolo scaduto, la pagina lo spiega. 403: uscito da un'altra scheda o sessione scaduta, si torna al form.
+  if (e.response && (e.response.status === 410 || e.response.status === 403)) location.reload();
 });
 setInterval(heartbeat, 20000);
 addEventListener('pageshow', (e) => { if (e.persisted) heartbeat(); }); // ripristino dalla cache back/forward
+// "Esci" avvisa già il server con il POST del form: il beacon sarebbe un doppione (e un 403).
+let exiting = false;
+$('#exitForm').addEventListener('submit', () => { exiting = true; });
 addEventListener('pagehide', () => {
+  if (exiting) return;
   // sendBeacon non può mettere header: il token CSRF va nel corpo.
   const body = new FormData();
   body.append('_token', document.querySelector('meta[name="csrf-token"]').content);

@@ -78,6 +78,8 @@ input[type=text]{width:100%;background:var(--panel-2);border:1px solid var(--lin
 .row{display:flex;flex-wrap:wrap;gap:8px}
 .btn{background:transparent;border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:.92rem}
 .btn[aria-pressed=false]{color:var(--muted)}
+.room form{margin:0;display:flex}
+.btn.exit{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
 .note{margin:0;font-size:.9rem;color:var(--muted);max-width:65ch}
 
 .log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
@@ -108,6 +110,9 @@ body.plain{display:grid;place-items:center;height:auto;min-height:100%}
 .card{width:min(100%,420px);display:flex;flex-direction:column;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px}
 .stack{display:flex;flex-direction:column;gap:16px}
 .err{margin:0;font-size:.9rem;color:var(--bad)}
+.notice{margin:0;font-size:.95rem;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.notice code{font:500 .85rem var(--f-mono)}
+.notice a{color:var(--brass);font-weight:700}
 .who{display:flex;align-items:center;gap:8px;font-weight:700}
 .players{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
 .players li{display:flex;align-items:center;gap:8px;min-width:0;font-weight:700}

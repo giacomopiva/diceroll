@@ -6,12 +6,8 @@ import { DT, TRAY, plan, simulate } from './physics.js';
 import { playHit } from './audio.js';
 
 const LABEL_FONT = '"Alegreya Sans", "Segoe UI", system-ui, sans-serif';
-const LABEL_SIZE = { d8: 0.36, d10: 0.34, d12: 0.36, d20: 0.3 };
-const PIPS = {
-  1: [[0, 0]], 2: [[-1, 1], [1, -1]], 3: [[-1, 1], [0, 0], [1, -1]],
-  4: [[-1, 1], [1, 1], [-1, -1], [1, -1]], 5: [[-1, 1], [1, 1], [0, 0], [-1, -1], [1, -1]],
-  6: [[-1, 1], [1, 1], [-1, 0], [1, 0], [-1, -1], [1, -1]],
-};
+// Quanto del cerchio inscritto nella faccia occupa il riquadro del numero più largo del dado.
+const LABEL_FILL = { d6: 0.7, d8: 0.88, d10: 0.86, d12: 0.72, d20: 0.86 };
 
 /* ---------------- Texture dei dadi (un atlante per tipo e colore) ---------------- */
 function palette(hex) {
@@ -29,49 +25,73 @@ function palette(hex) {
   };
 }
 
-function drawLabel(ctx, str, x, y, size, rot, pal, underline) {
+// Il 6 e il 9 si distinguono con una lineetta sotto (sul d6 c'è solo il 6, ma resta l'abitudine).
+const underlined = (str) => str === '6' || str === '9';
+
+// Riquadro reale delle cifre (non quello del font, che lascia spazio sopra e sotto),
+// lineetta compresa: serve sia per centrare il numero sia per dimensionarlo.
+function labelBox(ctx, str, size) {
+  ctx.font = `800 ${size}px ${LABEL_FONT}`;
+  const m = ctx.measureText(str);
+  const ul = underlined(str) ? size * 0.14 : 0;
+  return {
+    left: m.actualBoundingBoxLeft, asc: m.actualBoundingBoxAscent, desc: m.actualBoundingBoxDescent, ul,
+    w: m.actualBoundingBoxLeft + m.actualBoundingBoxRight,
+    h: m.actualBoundingBoxAscent + m.actualBoundingBoxDescent + ul,
+  };
+}
+
+// Disegna il numero con il centro del suo riquadro in (x, y).
+function drawLabel(ctx, str, x, y, size, rot, pal) {
+  const b = labelBox(ctx, str, size);
   ctx.save();
   ctx.translate(x, y); ctx.rotate(rot);
-  ctx.font = `800 ${size}px ${LABEL_FONT}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  const dy = size * 0.05;
-  ctx.fillStyle = pal.inkShadow; ctx.fillText(str, 0, dy + Math.max(1, size * 0.035));
-  ctx.fillStyle = pal.ink; ctx.fillText(str, 0, dy);
-  if (underline) ctx.fillRect(-size * 0.22, size * 0.46, size * 0.44, size * 0.07);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  const ox = -b.w / 2 + b.left, oy = -b.h / 2 + b.asc;
+  ctx.fillStyle = pal.inkShadow; ctx.fillText(str, ox, oy + Math.max(1, size * 0.035));
+  ctx.fillStyle = pal.ink; ctx.fillText(str, ox, oy);
+  if (b.ul) ctx.fillRect(-size * 0.2, oy + b.desc + size * 0.06, size * 0.4, size * 0.075);
   ctx.restore();
 }
 
-function drawCell(ctx, proto, f, cell, C, pal) {
+// Corpo del font per un tipo di dado: il numero più ingombrante deve stare nel cerchio inscritto
+// della faccia (con margine), così tutti i numeri del dado hanno la stessa altezza e nessuno tocca i bordi.
+function labelSize(ctx, proto, S) {
+  const r = Math.min(...proto.faces.map((f) => f.inc.r)) * S;
+  const diag = Math.max(...proto.faces.map((f) => { const b = labelBox(ctx, String(f.value), 100); return Math.hypot(b.w, b.h) / 100; }));
+  return (2 * r * LABEL_FILL[proto.type]) / diag;
+}
+
+function drawCell(ctx, proto, f, cell, C, pal, size) {
   const { cols } = proto.atlas, x0 = (cell % cols) * C, y0 = Math.floor(cell / cols) * C;
   const P = (u, v) => [x0 + (0.5 + (u - 0.5) * PAD) * C, y0 + (1 - (0.5 + (v - 0.5) * PAD)) * C];
   ctx.fillStyle = pal.base; ctx.fillRect(x0, y0, C, C);
   ctx.beginPath();
   f.uv.forEach(([u, v], i) => { const [x, y] = P(u, v); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
   ctx.closePath();
-  const [mx, my] = P(0.5, 0.5);
+  const [mx, my] = P(f.inc.u, f.inc.v);
   const g = ctx.createRadialGradient(mx, my - C * 0.1, C * 0.03, mx, my, C * 0.55);
   g.addColorStop(0, pal.hi); g.addColorStop(1, pal.lo);
   ctx.fillStyle = g; ctx.fill();
   ctx.lineJoin = 'round'; ctx.lineWidth = C * 0.06; ctx.strokeStyle = pal.edge; ctx.stroke();
 
-  const S = C * PAD;
-  if (proto.type === 'd6') {
-    const r = S * 0.068, s = S * 0.2;
-    for (const [px, py] of PIPS[f.value]) {
-      const x = mx + px * s, y = my - py * s;
-      ctx.beginPath(); ctx.arc(x, y + 1.2, r, 0, Math.PI * 2); ctx.fillStyle = pal.inkShadow; ctx.fill();
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = pal.ink; ctx.fill();
-    }
-  } else if (proto.type === 'd4') {
+  if (proto.type === 'd4') {
+    const S = C * PAD;
     f.idx.forEach((vi, k) => {
       const [u, v] = f.uv[k];
       const [x, y] = P(0.5 + (u - 0.5) * 0.56, 0.5 + (v - 0.5) * 0.56);
-      drawLabel(ctx, String(vi + 1), x, y, S * 0.22, Math.atan2(u - 0.5, v - 0.5), pal, false);
+      drawLabel(ctx, String(vi + 1), x, y, S * 0.22, Math.atan2(u - 0.5, v - 0.5), pal);
     });
   } else {
-    const str = String(f.value);
-    drawLabel(ctx, str, mx, my + (proto.type === 'd10' ? S * 0.06 : 0), S * LABEL_SIZE[proto.type], 0, pal, str === '6' || str === '9');
+    drawLabel(ctx, String(f.value), mx, my, size, 0, pal);
   }
+}
+
+/** Disegna l'atlante delle facce di un tipo di dado (celle C×C) nel colore dato. */
+export function drawAtlas(ctx, proto, hex, C) {
+  const pal = palette(hex);
+  const size = proto.type === 'd4' ? 0 : labelSize(ctx, proto, C * PAD);
+  proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal, size));
 }
 
 /**
@@ -115,13 +135,13 @@ export function createScene(canvas, stage, opts = {}) {
   }
   const feltMat = new THREE.MeshStandardMaterial({
     roughness: 1, metalness: 0,
-    map: canvasTexture(1024, 768, (ctx, w, h) => {
+    map: canvasTexture(1024, 1024, (ctx, w, h) => {
       ctx.fillStyle = '#1f4b55'; ctx.fillRect(0, 0, w, h);
       for (let i = 0; i < 26000; i++) {
         ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.07)';
         ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
       }
-      const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, w * 0.62);
+      const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.18, w / 2, h / 2, w * 0.5);
       g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     }),
@@ -142,26 +162,36 @@ export function createScene(canvas, stage, opts = {}) {
   });
   const tableMat = new THREE.MeshStandardMaterial({ color: 0x17120e, roughness: 0.85 });
 
-  // Vaschetta di dimensioni fisse (TRAY): si adatta solo la camera.
+  // Vaschetta esagonale di dimensioni fisse (TRAY): si adatta solo la camera.
+  // Il feltro è un esagono con i vertici sull'asse x, come le pareti fisiche; la cornice è un anello
+  // esagonale estruso, con lo spigolo superiore smussato.
+  const RIM = 0.75, RIM_H = 0.9, BEVEL = 0.07;
   (function buildTray() {
-    const g = new THREE.Group(), { W, D } = TRAY, t = 0.7, h = 0.9;
-    const felt = new THREE.Mesh(new THREE.PlaneGeometry(W, D), feltMat);
+    const g = new THREE.Group(), { R } = TRAY;
+    const felt = new THREE.Mesh(new THREE.CircleGeometry(R, 6), feltMat);
     felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; g.add(felt);
-    for (const [sx, sz, x, z] of [[W + 2 * t, t, 0, -(D / 2 + t / 2)], [W + 2 * t, t, 0, D / 2 + t / 2], [t, D, -(W / 2 + t / 2), 0], [t, D, W / 2 + t / 2, 0]]) {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), woodMat);
-      m.position.set(x, h / 2, z); m.castShadow = true; m.receiveShadow = true; g.add(m);
-    }
+
+    const hex = (r) => Array.from({ length: 6 }, (_, k) => new THREE.Vector2(r * Math.cos(k * Math.PI / 3), r * Math.sin(k * Math.PI / 3)));
+    // Spessore RIM misurato perpendicolare ai lati; lo smusso allarga il contorno, il foro lo compensa.
+    const shape = new THREE.Shape(hex(R + (RIM - BEVEL) / Math.cos(Math.PI / 6)));
+    shape.holes.push(new THREE.Path(hex(R + BEVEL / Math.cos(Math.PI / 6))));
+    const rimGeo = new THREE.ExtrudeGeometry(shape, { depth: RIM_H - 2 * BEVEL, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL, bevelSegments: 3, curveSegments: 1 });
+    woodMat.map.repeat.set(0.08, 0.5); // le UV dell'estrusione sono in unità di scena
+    const rim = new THREE.Mesh(rimGeo, woodMat);
+    rim.rotation.x = -Math.PI / 2; rim.position.y = BEVEL;
+    rim.castShadow = true; rim.receiveShadow = true; g.add(rim);
+
     const table = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), tableMat);
     table.rotation.x = -Math.PI / 2; table.position.y = -0.02; table.receiveShadow = true; g.add(table);
     scene.add(g);
-    const s = Math.max(W, D) / 2 + 3, cam = sun.shadow.camera;
+    const s = R + RIM + 2, cam = sun.shadow.camera;
     cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 1; cam.far = 70; cam.updateProjectionMatrix();
   })();
 
   function fitCamera() {
     const tilt = 0.42; // inclinazione dalla verticale, in radianti
     const fv = THREE.MathUtils.degToRad(camera.fov / 2), fh = Math.atan(Math.tan(fv) * camera.aspect);
-    const hw = TRAY.W / 2 + 0.9, hd = TRAY.D / 2 + 0.9;
+    const hw = TRAY.R + RIM + 0.3, hd = TRAY.A + RIM + 0.3;
     const dist = Math.max(hd / Math.tan(fv), hw / Math.tan(fh)) * 1.05 + 1.5;
     camera.position.set(0, Math.cos(tilt) * dist, Math.sin(tilt) * dist);
     camera.lookAt(0, 0, 0.35);
@@ -182,10 +212,8 @@ export function createScene(canvas, stage, opts = {}) {
   function diceMaterial(proto, hex) {
     const key = proto.type + '|' + hex;
     if (matCache.has(key)) return matCache.get(key);
-    const C = 160, { cols, rows } = proto.atlas, pal = palette(hex);
-    const map = canvasTexture(cols * C, rows * C, (ctx) => {
-      proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal));
-    });
+    const C = 160, { cols, rows } = proto.atlas;
+    const map = canvasTexture(cols * C, rows * C, (ctx) => drawAtlas(ctx, proto, hex, C));
     const mat = new THREE.MeshPhysicalMaterial({ map, roughness: 0.32, metalness: 0, clearcoat: 0.85, clearcoatRoughness: 0.16 });
     matCache.set(key, mat);
     return mat;

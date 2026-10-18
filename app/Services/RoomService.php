@@ -55,6 +55,12 @@ class RoomService
         return $participant;
     }
 
+    /** Il browser smette di essere un partecipante: per tornare serve rifare il join. */
+    public function forget(Room $room, Request $request): void
+    {
+        $request->session()->forget($this->sessionKey($room));
+    }
+
     private function sessionKey(Room $room): string
     {
         return 'participants.'.$room->id;

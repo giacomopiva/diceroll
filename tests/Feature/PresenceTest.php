@@ -112,3 +112,26 @@ test('heartbeat e uscita richiedono di essere nel tavolo', function () {
     $this->postJson("/t/{$room->code}/leave")->assertForbidden();
     Event::assertNothingDispatched();
 });
+
+test('il bottone Esci toglie dal tavolo e dimentica il partecipante', function () {
+    $room = Room::factory()->create();
+    $participant = enter($this, $room);
+
+    $this->post("/t/{$room->code}/exit")
+        ->assertRedirect('/')
+        ->assertSessionHas('left_room', $room->code);
+
+    expect($participant->fresh()->online)->toBeFalse();
+    Event::assertDispatched(ParticipantLeft::class, fn (ParticipantLeft $e) => $e->broadcastWith() === ['id' => $participant->id]);
+    $this->get('/')->assertSee('Sei uscito dal tavolo')->assertSee('/t/'.$room->code);
+    $this->get('/t/'.$room->code)->assertSee('Entra al tavolo');
+    $this->postJson("/t/{$room->code}/heartbeat")->assertForbidden();
+});
+
+test('Esci senza essere nel tavolo non annuncia niente', function () {
+    $room = Room::factory()->create();
+
+    $this->post("/t/{$room->code}/exit")->assertRedirect('/');
+
+    Event::assertNotDispatched(ParticipantLeft::class);
+});

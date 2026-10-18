@@ -2,7 +2,7 @@
 // Niente DOM: usata dal browser (window.__tavolo) e, in tappa 6, da Vitest in Node.
 import * as THREE from 'three';
 import { SIDES, TYPES, PROTOS, resultFace } from './geometry.js';
-import { TRAY, simulate, plan } from './physics.js';
+import { insideTray, simulate, plan } from './physics.js';
 
 /** `rand` è un generatore in [0,1): con un seed (mulberry32) la prova è ripetibile. */
 export function selfTest(n = 100, rand = Math.random) {
@@ -25,7 +25,7 @@ export function selfTest(n = 100, rand = Math.random) {
       const v = PROTOS[t].faces[resultFace(PROTOS[t], q)].value;
       out.dice++;
       if (v !== values[i]) out.mismatches++;
-      if (Math.abs(F[o]) > TRAY.W / 2 || Math.abs(F[o + 2]) > TRAY.D / 2) out.outside++;
+      if (!insideTray(F[o], F[o + 2])) out.outside++;
     });
   }
   return out;
