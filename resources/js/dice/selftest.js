@@ -4,15 +4,16 @@ import * as THREE from 'three';
 import { SIDES, TYPES, PROTOS, resultFace } from './geometry.js';
 import { TRAY, simulate, plan } from './physics.js';
 
-export function selfTest(n = 100) {
+/** `rand` è un generatore in [0,1): con un seed (mulberry32) la prova è ripetibile. */
+export function selfTest(n = 100, rand = Math.random) {
   const out = { runs: n, dice: 0, mismatches: 0, notAsleep: 0, outside: 0, maxSimMs: 0, avgSimMs: 0, maxSteps: 0, avgSteps: 0 };
   const q = new THREE.Quaternion();
   for (let r = 0; r < n; r++) {
-    const k = 1 + Math.floor(Math.random() * (r % 10 === 9 ? 30 : 8));
-    const list = Array.from({ length: k }, () => TYPES[Math.floor(Math.random() * 6)]);
-    const values = list.map((t) => 1 + Math.floor(Math.random() * SIDES[t]));
+    const k = 1 + Math.floor(rand() * (r % 10 === 9 ? 30 : 8));
+    const list = Array.from({ length: k }, () => TYPES[Math.floor(rand() * 6)]);
+    const values = list.map((t) => 1 + Math.floor(rand() * SIDES[t]));
     const t0 = performance.now();
-    const sim = simulate(list, 1 + Math.floor(Math.random() * 2e9));
+    const sim = simulate(list, 1 + Math.floor(rand() * 2e9));
     const qRs = plan(list, values, sim);
     const ms = performance.now() - t0;
     out.maxSimMs = Math.max(out.maxSimMs, ms); out.avgSimMs += ms / n;

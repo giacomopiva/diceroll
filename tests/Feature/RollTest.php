@@ -5,6 +5,7 @@ use App\Models\Roll;
 use App\Models\Room;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Tests\Support\FailingBroadcaster;
 
 uses(RefreshDatabase::class);
 
@@ -129,14 +130,8 @@ test('lo storico non può chiudere il tag script', function () {
 });
 
 test('se Reverb non risponde il lancio riesce comunque', function () {
-    // Broadcaster reale puntato su una porta chiusa.
-    config([
-        'broadcasting.default' => 'reverb',
-        'broadcasting.connections.reverb.options.host' => '127.0.0.1',
-        'broadcasting.connections.reverb.options.port' => 1,
-        'broadcasting.connections.reverb.options.scheme' => 'http',
-        'broadcasting.connections.reverb.options.useTLS' => false,
-    ]);
+    // Il test si basa sul broadcaster reale (che fallisce), non sull'evento finto: gli Event::fake delle altre prove qui non ci sono.
+    FailingBroadcaster::install();
     $room = joinedRoom($this);
 
     $this->postJson("/t/{$room->code}/rolls", ['dice' => ['d20']])->assertCreated();

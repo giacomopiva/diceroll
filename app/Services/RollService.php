@@ -6,7 +6,7 @@ use App\Events\DiceRolled;
 use App\Models\Participant;
 use App\Models\Roll;
 use App\Models\Room;
-use Illuminate\Broadcasting\BroadcastException;
+use App\Support\SafeBroadcast;
 
 class RollService
 {
@@ -31,12 +31,8 @@ class RollService
         $room->update(['last_activity_at' => now()]);
 
         // Il lancio è già salvato: se Reverb non risponde chi lancia lo vede lo stesso,
-        // gli altri lo ritrovano nello storico al prossimo caricamento. L'errore va nel log.
-        try {
-            broadcast(new DiceRolled($roll))->toOthers();
-        } catch (BroadcastException $e) {
-            report($e);
-        }
+        // gli altri lo ritrovano nello storico al prossimo caricamento.
+        SafeBroadcast::send(new DiceRolled($roll), toOthers: true);
 
         return $roll;
     }

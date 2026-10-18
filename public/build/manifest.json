@@ -8,7 +8,7 @@
     "isEntry": true
   },
   "resources/css/table.css": {
-    "file": "assets/table-C8LaW_mF.css",
+    "file": "assets/table-Bg834DMj.css",
     "src": "resources/css/table.css",
     "isEntry": true
   },
@@ -20,21 +20,13 @@
       "_bootstrap-CV6QdLmM.js"
     ]
   },
-  "resources/js/dev-ping.js": {
-    "file": "assets/dev-ping-lrTXGM83.js",
-    "src": "resources/js/dev-ping.js",
-    "isEntry": true,
-    "imports": [
-      "_bootstrap-CV6QdLmM.js"
-    ]
-  },
   "resources/js/join.js": {
     "file": "assets/join-DzHIUJ6y.js",
     "src": "resources/js/join.js",
     "isEntry": true
   },
   "resources/js/table.js": {
-    "file": "assets/table-4LOGEngx.js",
+    "file": "assets/table-Bq0jlhT7.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [

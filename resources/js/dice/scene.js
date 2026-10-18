@@ -191,7 +191,7 @@ export function createScene(canvas, stage, opts = {}) {
     return mat;
   }
 
-  let anim = null, meshes = [], lastSimMs = 0;
+  let anims = [], meshes = [], lastSimMs = 0;
   const q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion();
 
   function clearDice() { meshes.forEach((m) => scene.remove(m)); meshes = []; }
@@ -211,6 +211,8 @@ export function createScene(canvas, stage, opts = {}) {
   /**
    * Precalcola la fisica e avvia l'animazione di un lancio.
    * I valori arrivano dal server; qui si legge solo la faccia che il dado disegnato mostra.
+   * Lanci contemporanei convivono sul tavolo (ognuno ha la sua fisica, quindi i dadi di lanci diversi
+   * non si urtano); il tavolo si sgombra solo quando parte un lancio e nessun altro è in corso.
    * @param {{color: string, list: string[], values: number[], seed: number, onDone?: (seen: number[]) => void}} roll
    */
   function play({ color, list, values, seed, onDone }) {
@@ -219,7 +221,7 @@ export function createScene(canvas, stage, opts = {}) {
     const qRs = plan(list, values, sim);
     lastSimMs = performance.now() - t0;
 
-    clearDice();
+    if (!anims.length) clearDice();
     const dice = list.map((type, i) => {
       const proto = PROTOS[type];
       const mesh = new THREE.Mesh(proto.geometry, diceMaterial(proto, color));
@@ -227,24 +229,28 @@ export function createScene(canvas, stage, opts = {}) {
       scene.add(mesh); meshes.push(mesh);
       return { mesh, proto, frames: sim.frames[i], qR: qRs[i] };
     });
-    anim = { dice, steps: sim.steps, sounds: sim.sounds, si: 0, start: performance.now(), onDone };
-    poseDice(anim, 0);
+    const a = { dice, steps: sim.steps, sounds: sim.sounds, si: 0, start: performance.now(), onDone };
+    anims.push(a);
+    poseDice(a, 0);
   }
 
-  function updateAnim(now) {
-    const a = anim;
-    if (!a) return;
-    let s = ((now - a.start) / 1000) / DT;
-    const done = s >= a.steps - 1;
-    if (done) s = a.steps - 1;
-    poseDice(a, s);
-    let played = 0;
-    while (a.si < a.sounds.length && a.sounds[a.si].step <= s) {
-      const h = a.sounds[a.si++];
-      if (played++ < 5) playHit(h.v, h.kind);
+  function updateAnims(now) {
+    const finished = [];
+    for (const a of anims) {
+      let s = ((now - a.start) / 1000) / DT;
+      const done = s >= a.steps - 1;
+      if (done) s = a.steps - 1;
+      poseDice(a, s);
+      let played = 0;
+      while (a.si < a.sounds.length && a.sounds[a.si].step <= s) {
+        const h = a.sounds[a.si++];
+        if (played++ < 5) playHit(h.v, h.kind);
+      }
+      if (done) finished.push(a);
     }
-    if (done) {
-      anim = null;
+    if (!finished.length) return;
+    anims = anims.filter((a) => !finished.includes(a));
+    for (const a of finished) {
       if (a.onDone) a.onDone(a.dice.map((d) => d.proto.faces[resultFace(d.proto, d.mesh.quaternion)].value));
     }
   }
@@ -257,7 +263,7 @@ export function createScene(canvas, stage, opts = {}) {
       if (opts.onStats) opts.onStats((frameCount * 1000) / acc, acc / frameCount, meshes.length, lastSimMs, renderer.info.render.calls);
       frameCount = 0; acc = 0;
     }
-    updateAnim(now);
+    updateAnims(now);
     renderer.render(scene, camera);
   }
 

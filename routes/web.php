@@ -1,10 +1,8 @@
 <?php
 
-use App\Events\PingEvent;
 use App\Http\Controllers\Admin\HomeController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Lab404\Impersonate\Controllers\ImpersonateController;
 
@@ -24,6 +22,10 @@ Route::post('/t/{room}/join', [App\Http\Controllers\Table\TableController::class
     ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:20,1')->name('table.join');
 Route::post('/t/{room}/rolls', [App\Http\Controllers\Table\RollController::class, 'store'])
     ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:60,1')->name('table.rolls.store');
+Route::post('/t/{room}/heartbeat', [App\Http\Controllers\Table\PresenceController::class, 'heartbeat'])
+    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:30,1')->name('table.heartbeat');
+Route::post('/t/{room}/leave', [App\Http\Controllers\Table\PresenceController::class, 'leave'])
+    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:30,1')->name('table.leave');
 
 Route::get('/welcome', function () {
     return view('welcome');
@@ -107,15 +109,3 @@ Route::get('/user', function () {
 Route::middleware(['auth', 'role:user', 'status'])->prefix('user')->name('user.')->group(function () {
     Route::get('/home', [App\Http\Controllers\User\HomeController::class, 'index'])->name('home');
 });
-
-/**
- * Prova Reverb della tappa 1: solo in locale, da rimuovere.
- */
-if (app()->environment('local')) {
-    Route::get('/dev/ping', fn () => view('dev.ping'));
-    Route::post('/dev/ping', function (Request $request) {
-        PingEvent::dispatch((string) $request->input('message', 'ping'));
-
-        return response()->noContent();
-    });
-}

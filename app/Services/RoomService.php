@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Events\ParticipantJoined;
 use App\Models\Participant;
 use App\Models\Room;
+use App\Support\SafeBroadcast;
 use Illuminate\Http\Request;
 
 class RoomService
@@ -33,13 +35,16 @@ class RoomService
         $data = [
             'nickname' => $nickname,
             'color' => strtolower($color),
-            'last_seen_at' => now(),
         ];
 
         $participant = $this->currentParticipant($room, $request);
 
         if ($participant) {
             $participant->update($data);
+            // Nickname o colore cambiati: chi è già al tavolo aggiorna la lista.
+            if ($participant->online) {
+                SafeBroadcast::send(new ParticipantJoined($participant));
+            }
         } else {
             $participant = $room->participants()->create($data);
             $request->session()->put($this->sessionKey($room), $participant->id);
@@ -48,11 +53,6 @@ class RoomService
         $room->update(['last_activity_at' => now()]);
 
         return $participant;
-    }
-
-    public function markSeen(Participant $participant): void
-    {
-        $participant->update(['last_seen_at' => now()]);
     }
 
     private function sessionKey(Room $room): string

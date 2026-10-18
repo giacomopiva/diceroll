@@ -5,7 +5,7 @@
 @endpush
 
 @section('body')
-<body data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
+<body data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-heartbeat-url="{{ route('table.heartbeat', $room) }}" data-leave-url="{{ route('table.leave', $room) }}" data-player-id="{{ $participant->id }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
 <div class="app">
   <header class="bar">
     <div class="brand">Tavolo dei Dadi <small>tavolo {{ $room->code }}</small></div>
@@ -25,8 +25,8 @@
 
   <aside class="sheet">
     <section>
-      <h2>Giocatore</h2>
-      <div class="who"><span class="dot" style="background:{{ $participant->color }}"></span> {{ $participant->nickname }}</div>
+      <h2>Al tavolo <span id="playersCount"></span></h2>
+      <ul class="players" id="players"></ul>
     </section>
 
     <section>
@@ -53,6 +53,7 @@
     </section>
   </aside>
 </div>
+<script type="application/json" id="presence">@json($players, JSON_HEX_TAG | JSON_HEX_AMP)</script>
 <script type="application/json" id="history">@json($history, JSON_HEX_TAG | JSON_HEX_AMP)</script>
 </body>
 @endsection

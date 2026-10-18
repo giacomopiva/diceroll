@@ -97,23 +97,13 @@ function showMessage(text) {
   t.hidden = false;
 }
 
-/* ---------------- Lanci: coda di riproduzione ---------------- */
-// Un solo lancio alla volta sulla scena: quelli che arrivano mentre i dadi rotolano aspettano il loro turno.
+/* ---------------- Lanci ---------------- */
+// Ogni lancio parte appena arriva, anche se altri rotolano ancora: sul tavolo si vedono insieme.
 const handled = new Set(); // id dei lanci già visti (storico, risposta HTTP, evento)
-const queue = [];
-let playing = false;
 
-function enqueue(roll) {
+function startRoll(roll) {
   if (handled.has(roll.id)) return;
   handled.add(roll.id);
-  queue.push(roll);
-  playNext();
-}
-
-function playNext() {
-  if (playing || !queue.length) return;
-  playing = true;
-  const roll = queue.shift();
   const entry = addLogEntry(roll);
   $('#toast').hidden = true;
   table.play({
@@ -121,8 +111,8 @@ function playNext() {
     onDone(seen) {
       fillLogEntry(entry, roll, seen.every((v, i) => v === roll.values[i]));
       showToast(roll);
-      playing = false;
-      playNext();
+      // Il pulsante si riabilita quando si fermano i dadi di chi ha lanciato, non quelli degli altri.
+      if (roll.player.id === myId) { rolling = false; renderPool(); }
     },
   });
 }
@@ -132,9 +122,38 @@ for (const roll of JSON.parse($('#history').textContent)) {
   fillLogEntry(addLogEntry(roll), roll, null);
 }
 
-window.Echo.channel('table.' + document.body.dataset.room).listen('DiceRolled', enqueue);
+/* ---------------- Presenza: chi è al tavolo ---------------- */
+// Lista iniziale dal server; poi ParticipantJoined/Left sul canale, heartbeat ogni 20 s e avviso all'uscita.
+const myId = Number(document.body.dataset.playerId);
+const players = new Map(JSON.parse($('#presence').textContent).map((p) => [p.id, p]));
+
+function renderPlayers() {
+  $('#playersCount').textContent = `(${players.size})`;
+  $('#players').innerHTML = [...players.values()].map((p) =>
+    `<li><span class="dot" style="background:${esc(p.color)}"></span><span class="nm">${esc(p.nickname)}</span>${p.id === myId ? '<small>tu</small>' : ''}</li>`).join('');
+}
+renderPlayers();
+
+const channel = window.Echo.channel('table.' + document.body.dataset.room);
+channel.listen('DiceRolled', startRoll);
+channel.listen('ParticipantJoined', (p) => { players.set(p.id, p); renderPlayers(); });
+channel.listen('ParticipantLeft', (p) => {
+  if (p.id === myId) return; // questa scheda è viva: il prossimo heartbeat sistema eventuali scarti
+  players.delete(p.id); renderPlayers();
+});
+
+const heartbeat = () => window.axios.post(document.body.dataset.heartbeatUrl).catch(() => {});
+setInterval(heartbeat, 20000);
+addEventListener('pageshow', (e) => { if (e.persisted) heartbeat(); }); // ripristino dalla cache back/forward
+addEventListener('pagehide', () => {
+  // sendBeacon non può mettere header: il token CSRF va nel corpo.
+  const body = new FormData();
+  body.append('_token', document.querySelector('meta[name="csrf-token"]').content);
+  navigator.sendBeacon(document.body.dataset.leaveUrl, body);
+});
 
 /* ---------------- Lancio mio ---------------- */
+// Da quando premo Lancia a quando i miei dadi si fermano: il pulsante resta disattivato.
 let rolling = false;
 async function rollDice(list) {
   if (!list.length || rolling) return;
@@ -146,14 +165,14 @@ async function rollDice(list) {
     const { data } = await window.axios.post(document.body.dataset.rollsUrl, { dice: list }, {
       headers: { 'X-Socket-ID': window.Echo.socketId() },
     });
-    enqueue(data);
+    startRoll(data);
   } catch (e) {
     const status = e.response && e.response.status;
     if (status === 403) location.reload(); // sessione scaduta: torna il form di ingresso
     else if (status === 422) showMessage('Lancio non valido.');
     else if (status === 429) showMessage('Troppi lanci, aspetta un momento.');
     else showMessage('Non riesco a lanciare, riprova.');
-  } finally {
+    // Lancio mai partito: si può riprovare subito.
     rolling = false;
     renderPool();
   }
