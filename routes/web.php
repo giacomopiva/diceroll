@@ -103,6 +103,7 @@ Route::middleware(['auth', 'role:user', 'status'])->prefix('user')->name('user.'
  */
 if (app()->environment('local')) {
     Route::get('/dev/ping', fn () => view('dev.ping'));
+    Route::get('/dev/tavolo', fn () => view('dev.tavolo'));
     Route::post('/dev/ping', function (Request $request) {
         PingEvent::dispatch((string) $request->input('message', 'ping'));
 

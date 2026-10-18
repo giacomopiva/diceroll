@@ -18,6 +18,8 @@
     },
     "dependencies": {
         "adminbsb-materialdesign": "^1.0.7",
-        "lodash": "^4.17.21"
+        "cannon-es": "0.20.0",
+        "lodash": "^4.17.21",
+        "three": "0.169.0"
     }
 }
