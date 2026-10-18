@@ -1,6 +1,6 @@
 {
-  "_bootstrap-CV6QdLmM.js": {
-    "file": "assets/bootstrap-CV6QdLmM.js"
+  "_echo-mogN8efM.js": {
+    "file": "assets/echo-mogN8efM.js"
   },
   "resources/css/app.css": {
     "file": "assets/app-CsdbagXp.css",
@@ -13,11 +13,11 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-DbzJYkSA.js",
+    "file": "assets/app-CcHL4ySE.js",
     "src": "resources/js/app.js",
     "isEntry": true,
     "imports": [
-      "_bootstrap-CV6QdLmM.js"
+      "_echo-mogN8efM.js"
     ]
   },
   "resources/js/join.js": {
@@ -26,11 +26,11 @@
     "isEntry": true
   },
   "resources/js/table.js": {
-    "file": "assets/table-Bq0jlhT7.js",
+    "file": "assets/table-BBjeX6UF.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [
-      "_bootstrap-CV6QdLmM.js"
+      "_echo-mogN8efM.js"
     ]
   }
 }

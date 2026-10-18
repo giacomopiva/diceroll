@@ -1,6 +1,7 @@
 @extends('table.layout')
 
 @push('head')
+<script>window.TAVOLO_REALTIME = @json(config('tavolo.realtime'), JSON_HEX_TAG | JSON_HEX_AMP);</script>
 @vite(['resources/js/table.js'])
 @endpush
 

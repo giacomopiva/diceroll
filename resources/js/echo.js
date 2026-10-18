@@ -3,12 +3,18 @@ import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
 window.Pusher = Pusher;
 
+// Configurazione a runtime, iniettata dalla pagina (config/tavolo.php): il build non dipende
+// dall'ambiente in cui è stato fatto. Le variabili VITE_REVERB_* restano come ripiego.
+const rt = window.TAVOLO_REALTIME ?? {};
+const scheme = rt.scheme ?? import.meta.env.VITE_REVERB_SCHEME ?? 'https';
+const port = rt.port ?? import.meta.env.VITE_REVERB_PORT;
+
 window.Echo = new Echo({
     broadcaster: 'reverb',
-    key: import.meta.env.VITE_REVERB_APP_KEY,
-    wsHost: import.meta.env.VITE_REVERB_HOST,
-    wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
-    wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
-    forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
+    key: rt.key ?? import.meta.env.VITE_REVERB_APP_KEY,
+    wsHost: rt.host ?? import.meta.env.VITE_REVERB_HOST,
+    wsPort: port ?? 80,
+    wssPort: port ?? 443,
+    forceTLS: scheme === 'https',
     enabledTransports: ['ws', 'wss'],
 });

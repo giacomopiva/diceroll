@@ -1,6 +1,7 @@
 // Interfaccia del tavolo. I valori e il seed di ogni lancio li decide il server (POST dei dadi,
 // evento DiceRolled per gli altri): il client non propone mai valori, li anima soltanto.
-import './bootstrap';
+import './net';
+import './echo';
 import { TYPES } from './dice/geometry.js';
 import { createScene } from './dice/scene.js';
 import { ensureAudio, setSound } from './dice/audio.js';
