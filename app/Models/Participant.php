@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Services\PresenceService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Participant extends Model
 {
@@ -24,6 +27,24 @@ class Participant extends Model
             'online' => 'boolean',
             'last_seen_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Chi è online adesso: segnato online e con un heartbeat recente.
+     *
+     * @param  Builder<Participant>  $query
+     * @return Builder<Participant>
+     */
+    public function scopeOnline(Builder $query): Builder
+    {
+        return $query->where('online', true)
+            ->where('last_seen_at', '>=', now()->subSeconds(PresenceService::STALE_SECONDS));
+    }
+
+    /** @return HasMany<Roll, $this> */
+    public function rolls(): HasMany
+    {
+        return $this->hasMany(Roll::class);
     }
 
     /** @return BelongsTo<Room, $this> */

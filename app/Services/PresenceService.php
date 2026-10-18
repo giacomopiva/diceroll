@@ -21,11 +21,7 @@ class PresenceService
     /** @return Collection<int, Participant> */
     public function online(Room $room): Collection
     {
-        return $room->participants()
-            ->where('online', true)
-            ->where('last_seen_at', '>=', now()->subSeconds(self::STALE_SECONDS))
-            ->orderBy('id')
-            ->get();
+        return $room->participants()->online()->orderBy('id')->get();
     }
 
     /** Segna il partecipante online; se prima non lo era (o era scaduto) lo annuncia al tavolo. */

@@ -24,6 +24,7 @@ class TableController extends Controller
         }
 
         $this->presence->heartbeat($participant);
+        $room->touchActivity();
 
         // Ultimi lanci per chi entra a partita iniziata, dal più vecchio al più recente.
         $history = $room->rolls()->with('participant')->latest('id')->limit(30)->get()

@@ -82,6 +82,17 @@
                         </a>
                     </li>
         
+                    {{-- Tavoli dei dadi --}}
+                    <li class="nav-item">
+                        <a class="nav-link {{ isSectionActive(['tables'], 1) ? 'active' : '' }}"
+                            href="{{ route('admin.room.index') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                <i class="ti ti-dice"></i>
+                            </span>
+                            <span class="nav-link-title">Tavoli</span>
+                        </a>
+                    </li>
+
                     <div class="d-none d-lg-block border-top border-white-10 my-2"></div>
 
                     {{-- Divider --}}

@@ -48,6 +48,20 @@ class Roll extends Model
         return $this->belongsTo(Participant::class);
     }
 
+    /** Formula del lancio, per esempio "2d20 + 1d6". */
+    public function formula(): string
+    {
+        $count = array_count_values($this->dice);
+        $parts = [];
+        foreach (array_keys(self::SIDES) as $type) {
+            if (isset($count[$type])) {
+                $parts[] = $count[$type].$type;
+            }
+        }
+
+        return implode(' + ', $parts);
+    }
+
     /**
      * Forma unica del lancio per risposta HTTP, evento e storico.
      *

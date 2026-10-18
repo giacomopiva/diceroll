@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureRoomIsActive;
 use App\Http\Middleware\StatusMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => PermissionMiddleware::class,
             'role' => RoleMiddleware::class,
             'status' => StatusMiddleware::class,
+            'room.active' => EnsureRoomIsActive::class,
         ]);
         // $middleware->redirectGuestsTo('login');
     })

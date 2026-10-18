@@ -1,8 +1,13 @@
 <?php
 
 use App\Http\Controllers\Admin\HomeController;
+use App\Http\Controllers\Admin\RoomController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Table\PresenceController;
+use App\Http\Controllers\Table\RollController;
+use App\Http\Controllers\Table\TableController;
+use App\Models\Room;
 use Illuminate\Support\Facades\Route;
 use Lab404\Impersonate\Controllers\ImpersonateController;
 
@@ -16,16 +21,18 @@ Route::get('/', [App\Http\Controllers\Table\HomeController::class, 'index'])->na
  */
 Route::post('/rooms', [App\Http\Controllers\Table\HomeController::class, 'store'])
     ->middleware('throttle:20,1')->name('rooms.store');
-Route::get('/t/{room}', [App\Http\Controllers\Table\TableController::class, 'show'])
-    ->where('room', App\Models\Room::CODE_PATTERN)->name('table.show');
-Route::post('/t/{room}/join', [App\Http\Controllers\Table\TableController::class, 'join'])
-    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:20,1')->name('table.join');
-Route::post('/t/{room}/rolls', [App\Http\Controllers\Table\RollController::class, 'store'])
-    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:60,1')->name('table.rolls.store');
-Route::post('/t/{room}/heartbeat', [App\Http\Controllers\Table\PresenceController::class, 'heartbeat'])
-    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:30,1')->name('table.heartbeat');
-Route::post('/t/{room}/leave', [App\Http\Controllers\Table\PresenceController::class, 'leave'])
-    ->where('room', App\Models\Room::CODE_PATTERN)->middleware('throttle:30,1')->name('table.leave');
+Route::prefix('/t/{room}')->where(['room' => Room::CODE_PATTERN])
+    ->middleware('room.active')->name('table.')->group(function () {
+        Route::get('/', [TableController::class, 'show'])->name('show');
+        Route::post('/join', [TableController::class, 'join'])
+            ->middleware('throttle:20,1')->name('join');
+        Route::post('/rolls', [RollController::class, 'store'])
+            ->middleware('throttle:60,1')->name('rolls.store');
+        Route::post('/heartbeat', [PresenceController::class, 'heartbeat'])
+            ->middleware('throttle:30,1')->name('heartbeat');
+        Route::post('/leave', [PresenceController::class, 'leave'])
+            ->middleware('throttle:30,1')->name('leave');
+    });
 
 Route::get('/welcome', function () {
     return view('welcome');
@@ -76,6 +83,11 @@ Route::get('/admin', function () {
 
 Route::middleware(['auth', 'role:admin', 'status'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/home', [HomeController::class, 'index'])->name('home');
+
+    // Tavoli dei dadi: elenco e storico dei lanci
+    Route::get('/tables', [RoomController::class, 'index'])->name('room.index');
+    Route::get('/tables/{room}', [RoomController::class, 'show'])
+        ->where('room', Room::CODE_PATTERN)->name('room.show');
 
     // Gestione utenti
     Route::resource('user', UserController::class)->except(['show']);

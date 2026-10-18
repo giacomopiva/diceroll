@@ -10,5 +10,6 @@ return [
 
     'user' => 'utente',
     'home' => 'home',
+    'tables' => 'tavoli',
 
 ];

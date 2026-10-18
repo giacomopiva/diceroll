@@ -10,6 +10,7 @@ return [
 
     'user' => 'utente',
     'home' => 'home',
+    'tables' => 'tables',
     'installation' => 'impianti',
     'supplier' => 'fornitore',
     'order' => 'ordine',

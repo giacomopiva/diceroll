@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -31,6 +33,43 @@ class Room extends Model
     public function getRouteKeyName(): string
     {
         return 'code';
+    }
+
+    /** Istante prima del quale l'ultima attività rende scaduto un tavolo. */
+    public static function expiryCutoff(): Carbon
+    {
+        return now()->subHours(config('tavolo.expire_after_hours'));
+    }
+
+    /**
+     * @param  Builder<Room>  $query
+     * @return Builder<Room>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('last_activity_at', '>=', self::expiryCutoff());
+    }
+
+    /**
+     * @param  Builder<Room>  $query
+     * @return Builder<Room>
+     */
+    public function scopeExpired(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->whereNull('last_activity_at')->orWhere('last_activity_at', '<', self::expiryCutoff()));
+    }
+
+    public function isExpired(): bool
+    {
+        return ($this->last_activity_at ?? $this->created_at)->lt(self::expiryCutoff());
+    }
+
+    /** Segna attività, ma al massimo una scrittura ogni 5 minuti (per l'apertura della pagina). */
+    public function touchActivity(): void
+    {
+        if ($this->last_activity_at === null || $this->last_activity_at->lt(now()->subMinutes(5))) {
+            $this->update(['last_activity_at' => now()]);
+        }
     }
 
     /** @return HasMany<Participant, $this> */

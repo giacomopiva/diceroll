@@ -143,7 +143,9 @@ channel.listen('ParticipantLeft', (p) => {
   players.delete(p.id); renderPlayers();
 });
 
-const heartbeat = () => window.axios.post(document.body.dataset.heartbeatUrl).catch(() => {});
+const heartbeat = () => window.axios.post(document.body.dataset.heartbeatUrl).catch((e) => {
+  if (e.response && e.response.status === 410) location.reload(); // tavolo scaduto: la pagina lo spiega
+});
 setInterval(heartbeat, 20000);
 addEventListener('pageshow', (e) => { if (e.persisted) heartbeat(); }); // ripristino dalla cache back/forward
 addEventListener('pagehide', () => {
@@ -169,7 +171,7 @@ async function rollDice(list) {
     startRoll(data);
   } catch (e) {
     const status = e.response && e.response.status;
-    if (status === 403) location.reload(); // sessione scaduta: torna il form di ingresso
+    if (status === 403 || status === 410) location.reload(); // sessione scaduta (form di ingresso) o tavolo scaduto
     else if (status === 422) showMessage('Lancio non valido.');
     else if (status === 429) showMessage('Troppi lanci, aspetta un momento.');
     else showMessage('Non riesco a lanciare, riprova.');

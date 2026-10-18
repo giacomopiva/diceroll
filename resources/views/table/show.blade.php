@@ -45,7 +45,7 @@
         @endif
         <button class="btn" id="soundBtn" type="button" aria-pressed="true">Suono: sì</button>
       </div>
-      <p class="note">Il risultato di ogni lancio lo decide il server. La spunta verde nel registro conferma che la faccia in alto del dado disegnato coincide col valore del server.</p>
+      <p class="note">I tavoli scadono dopo {{ config('tavolo.expire_after_hours') }} ore senza attività e vengono cancellati, con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.</p>
     </section>
 
     <section>

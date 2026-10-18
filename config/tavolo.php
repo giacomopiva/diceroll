@@ -12,6 +12,12 @@ $pusher = env('BROADCAST_CONNECTION') === 'pusher';
 
 return [
 
+    // Un tavolo senza attività (join, lanci, apertura della pagina) da tante ore scade: non è più
+    // raggiungibile. I dati restano per retention_days giorni (statistiche admin), poi tavolo.prune li cancella.
+    // TAVOLO_RETENTION_DAYS=0 cancella i tavoli appena scadono.
+    'expire_after_hours' => (int) env('TAVOLO_EXPIRE_HOURS', 24),
+    'retention_days' => (int) env('TAVOLO_RETENTION_DAYS', 30),
+
     'realtime' => $pusher
         ? [
             'driver' => 'pusher',
