@@ -113,6 +113,17 @@
                         </a>
                     </li>
 
+                    {{-- Impostazioni --}}
+                    <li class="nav-item">
+                        <a class="nav-link {{ isSectionActive(['settings'], 1) ? 'active' : '' }}"
+                            href="{{ route('admin.settings.edit') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                <i class="ti ti-adjustments"></i>
+                            </span>
+                            <span class="nav-link-title">Impostazioni</span>
+                        </a>
+                    </li>
+
                     {{-- Log --}}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url('admin/log-viewer') }}" target="_blank">

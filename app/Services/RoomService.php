@@ -11,6 +11,20 @@ use Illuminate\Validation\ValidationException;
 
 class RoomService
 {
+    public function __construct(private SettingsService $settings) {}
+
+    /** Si può aprire un altro tavolo? Contano solo quelli non scaduti. */
+    public function canCreateRoom(): bool
+    {
+        return Room::active()->count() < $this->settings->maxRooms();
+    }
+
+    /** Il tavolo ha già il massimo di partecipanti online? */
+    public function isFull(Room $room): bool
+    {
+        return $room->participants()->online()->count() >= $this->settings->maxParticipants();
+    }
+
     public function createRoom(): Room
     {
         return Room::create([
@@ -53,6 +67,11 @@ class RoomService
 
         $participant = $this->currentParticipant($room, $request);
 
+        // Chi è già dentro può sempre aggiornare i propri dati; solo i nuovi arrivi trovano il tavolo pieno.
+        if (! $participant && $this->isFull($room)) {
+            throw ValidationException::withMessages(['room' => $this->fullMessage()]);
+        }
+
         if (in_array($data['color'], $this->takenColors($room, $participant), true)) {
             throw ValidationException::withMessages(['color' => 'Questo colore è già usato da un altro giocatore.']);
         }
@@ -71,6 +90,11 @@ class RoomService
         $room->update(['last_activity_at' => now()]);
 
         return $participant;
+    }
+
+    public function fullMessage(): string
+    {
+        return 'Il tavolo è al completo ('.$this->settings->maxParticipants().' giocatori). Riprova più tardi.';
     }
 
     /** Il browser smette di essere un partecipante: per tornare serve rifare il join. */

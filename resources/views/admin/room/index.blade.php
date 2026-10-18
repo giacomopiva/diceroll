@@ -22,11 +22,14 @@
 
 <div class="page-body">
     <div class="container-xl">
+        @if (session('deleted'))
+            <div class="alert alert-success" role="alert">Tavolo <span class="font-monospace">{{ session('deleted') }}</span> eliminato.</div>
+        @endif
         <div class="card">
             <div class="table-responsive">
                 <table class="table table-vcenter card-table">
                     <thead>
-                        <tr><th>Codice</th><th>Stato</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Creato</th><th>Ultima attività</th></tr>
+                        <tr><th>Codice</th><th>Stato</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Creato</th><th>Attivo da</th><th>Ultimo lancio</th><th>Inattivo da</th><th></th></tr>
                     </thead>
                     <tbody>
                         @forelse ($rooms as $room)
@@ -45,10 +48,20 @@
                                 </td>
                                 <td class="text-end">{{ $room->rolls_count }}</td>
                                 <td class="text-secondary">{{ $room->created_at->locale('it')->isoFormat('D MMM YYYY HH:mm') }}</td>
-                                <td class="text-secondary">{{ $room->last_activity_at?->locale('it')->diffForHumans() ?? '—' }}</td>
+                                <td>{{ $room->activeFor() }}</td>
+                                <td class="text-secondary">{{ $room->lastRollAt()?->locale('it')->isoFormat('D MMM HH:mm') ?? '—' }}</td>
+                                <td>{{ $room->idleFor() }}@unless ($room->lastRollAt()) <span class="text-secondary small">(nessun lancio)</span>@endunless</td>
+                                <td class="text-end">
+                                    <form method="post" action="{{ route('admin.room.destroy', $room) }}" class="d-inline"
+                                          onsubmit="return confirm('Eliminare il tavolo {{ $room->code }} con partecipanti e lanci? L\'azione è irreversibile.')">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Elimina il tavolo"><i class="ti ti-trash"></i></button>
+                                    </form>
+                                </td>
                             </tr>
                         @empty
-                            <tr><td colspan="6" class="text-center text-secondary py-4">Nessun tavolo.</td></tr>
+                            <tr><td colspan="9" class="text-center text-secondary py-4">Nessun tavolo.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

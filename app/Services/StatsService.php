@@ -241,7 +241,7 @@ class StatsService
      */
     public function withCounts($query)
     {
-        return $query->withCount([
+        return $query->withMax('rolls', 'created_at')->withCount([
             'rolls',
             'participants',
             'participants as online_count' => fn ($q) => $q->online(),

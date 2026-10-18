@@ -72,6 +72,42 @@ class Room extends Model
         }
     }
 
+    /** Istante dell'ultimo lancio (usa il withMax della lista se presente), null se non ce ne sono. */
+    public function lastRollAt(): ?Carbon
+    {
+        $value = array_key_exists('rolls_max_created_at', $this->attributes)
+            ? $this->attributes['rolls_max_created_at']
+            : $this->rolls()->max('created_at');
+
+        return $value ? Carbon::parse($value) : null;
+    }
+
+    /** Da quanto il tavolo è attivo: dalla creazione a ora (o all'ultima attività, se è scaduto). */
+    public function activeFor(): string
+    {
+        $end = $this->isExpired() ? ($this->last_activity_at ?? $this->created_at) : now();
+
+        return self::formatMinutes((int) $this->created_at->diffInMinutes($end));
+    }
+
+    /** Da quanto non si tira: dall'ultimo lancio, o dalla creazione se nessuno ha ancora tirato. */
+    public function idleFor(): string
+    {
+        return self::formatMinutes((int) ($this->lastRollAt() ?? $this->created_at)->diffInMinutes(now()));
+    }
+
+    /** 35 min · 2 h 15 min · 3 g 4 h */
+    public static function formatMinutes(int $minutes): string
+    {
+        $minutes = max(0, $minutes);
+
+        return match (true) {
+            $minutes < 60 => $minutes.' min',
+            $minutes < 1440 => intdiv($minutes, 60).' h '.($minutes % 60).' min',
+            default => intdiv($minutes, 1440).' g '.intdiv($minutes % 1440, 60).' h',
+        };
+    }
+
     /** @return HasMany<Participant, $this> */
     public function participants(): HasMany
     {

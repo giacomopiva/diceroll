@@ -20,7 +20,7 @@ class TableController extends Controller
         $participant = $this->rooms->currentParticipant($room, $request);
 
         if (! $participant) {
-            return view('table.join', ['room' => $room, 'taken' => $this->rooms->takenColors($room)]);
+            return view('table.join', ['room' => $room, 'taken' => $this->rooms->takenColors($room), 'full' => $this->rooms->isFull($room), 'fullMessage' => $this->rooms->fullMessage()]);
         }
 
         $this->presence->heartbeat($participant);

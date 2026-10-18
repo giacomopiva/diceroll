@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Room;
 use App\Services\StatsService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -38,5 +39,13 @@ class RoomController extends AdminController
             'participants' => $room->participants()->withCount('rolls')->orderBy('id')->get(),
             'rolls' => $room->rolls()->with('participant')->latest('id')->paginate(50),
         ]);
+    }
+
+    /** Elimina il tavolo con partecipanti e lanci (cascata nel database). */
+    public function destroy(Room $room): RedirectResponse
+    {
+        $room->delete();
+
+        return redirect()->route('admin.room.index')->with('deleted', $room->code);
     }
 }

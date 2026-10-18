@@ -11,6 +11,10 @@
 <main class="card">
   <h1 class="brand">Tavolo dei Dadi</h1>
   <p class="note">Stai entrando nel tavolo <code>{{ $room->code }}</code>. Scegli come ti chiamano gli altri e il colore dei tuoi dadi.</p>
+ @if ($full)
+  <p class="notice" role="status">{{ $fullMessage }}</p>
+  @else
+  @error('room')<p class="err">{{ $message }}</p>@enderror
   <form method="post" action="{{ route('table.join', $room) }}" id="joinForm" class="stack">
     @csrf
     <label class="field" for="nick">Nickname
@@ -27,6 +31,7 @@
 
     <button class="roll" type="submit">Entra al tavolo</button>
   </form>
+  @endif
 </main>
 </body>
 @endsection

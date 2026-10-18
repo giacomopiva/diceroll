@@ -18,6 +18,11 @@ return [
     'expire_after_hours' => (int) env('TAVOLO_EXPIRE_HOURS', 24),
     'retention_days' => (int) env('TAVOLO_RETENTION_DAYS', 30),
 
+    // Limiti di default, modificabili da admin (Impostazioni): tavoli aperti insieme e partecipanti online per tavolo.
+    'max_rooms' => 4,
+    'max_participants' => 6,
+    'rooms_limit_message' => 'Al momento tutti i tavoli sono occupati. Riprova tra qualche minuto.',
+
     'realtime' => $pusher
         ? [
             'driver' => 'pusher',

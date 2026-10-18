@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\HomeController;
 use App\Http\Controllers\Admin\RoomController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Table\PresenceController;
@@ -90,6 +91,12 @@ Route::middleware(['auth', 'role:admin', 'status'])->prefix('admin')->name('admi
     Route::get('/tables', [RoomController::class, 'index'])->name('room.index');
     Route::get('/tables/{room}', [RoomController::class, 'show'])
         ->where('room', Room::CODE_PATTERN)->name('room.show');
+    Route::delete('/tables/{room}', [RoomController::class, 'destroy'])
+        ->where('room', Room::CODE_PATTERN)->name('room.destroy');
+
+    // Limiti del tavolo (tavoli aperti, partecipanti, messaggio)
+    Route::get('/settings', [SettingsController::class, 'edit'])->name('settings.edit');
+    Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
 
     // Gestione utenti
     Route::resource('user', UserController::class)->except(['show']);

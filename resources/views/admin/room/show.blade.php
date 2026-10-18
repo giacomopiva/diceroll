@@ -17,6 +17,12 @@
                 </h2>
             </div>
             <div class="col-auto ms-auto d-print-none">
+                <form method="post" action="{{ route('admin.room.destroy', $room) }}" class="d-inline"
+                      onsubmit="return confirm('Eliminare il tavolo {{ $room->code }} con partecipanti e lanci? L\'azione è irreversibile.')">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-outline-danger"><i class="ti ti-trash me-1"></i>Elimina</button>
+                </form>
                 <a href="{{ route('admin.room.index') }}" class="btn btn-outline-primary"><i class="ti ti-arrow-left me-1"></i>Tutti i tavoli</a>
             </div>
         </div>
@@ -36,6 +42,12 @@
                             <dd class="col-7">{{ $room->created_at->locale('it')->isoFormat('D MMM YYYY HH:mm') }}</dd>
                             <dt class="col-5">Ultima attività</dt>
                             <dd class="col-7">{{ $room->last_activity_at?->locale('it')->isoFormat('D MMM YYYY HH:mm') ?? '—' }}</dd>
+                            <dt class="col-5">Attivo da</dt>
+                            <dd class="col-7">{{ $room->activeFor() }}</dd>
+                            <dt class="col-5">Ultimo lancio</dt>
+                            <dd class="col-7">{{ $room->lastRollAt()?->locale('it')->isoFormat('D MMM YYYY HH:mm') ?? '—' }}</dd>
+                            <dt class="col-5">Inattivo da</dt>
+                            <dd class="col-7">{{ $room->idleFor() }}@unless ($room->lastRollAt()) <span class="text-secondary small">(nessun lancio)</span>@endunless</dd>
                             <dt class="col-5">Lanci</dt>
                             <dd class="col-7">{{ $rolls->total() }}</dd>
                             <dt class="col-5">Giocatori</dt>
