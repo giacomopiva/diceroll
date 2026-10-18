@@ -88,3 +88,30 @@ test('il nickname viene mostrato con escape', function () {
 
     $this->get('/t/'.$room->code)->assertDontSee('<b>x</b>', false)->assertSee('&lt;b&gt;x&lt;/b&gt;', false);
 });
+
+test('i colori già usati da chi è online non si possono scegliere', function () {
+    $room = Room::factory()->create();
+    $this->post("/t/{$room->code}/join", ['nickname' => 'Elara', 'color' => '#1F8A5B']);
+    $this->get('/t/'.$room->code); // aprire il tavolo mette online
+
+    $this->flushSession();
+    $this->get('/t/'.$room->code)->assertOk()->assertSee('&quot;#1f8a5b&quot;', false);
+
+    $this->post("/t/{$room->code}/join", ['nickname' => 'Thorin', 'color' => '#1f8a5b'])
+        ->assertSessionHasErrors('color');
+    expect(Participant::count())->toBe(1);
+
+    $this->post("/t/{$room->code}/join", ['nickname' => 'Thorin', 'color' => '#b3243a'])->assertSessionHasNoErrors();
+    expect(Participant::count())->toBe(2);
+});
+
+test('il colore di chi è uscito torna disponibile', function () {
+    $room = Room::factory()->create();
+    $this->post("/t/{$room->code}/join", ['nickname' => 'Elara', 'color' => '#1f8a5b']);
+    $this->get('/t/'.$room->code);
+    Participant::firstOrFail()->update(['online' => false]);
+
+    $this->flushSession();
+    $this->post("/t/{$room->code}/join", ['nickname' => 'Thorin', 'color' => '#1f8a5b'])->assertSessionHasNoErrors();
+    expect(Participant::count())->toBe(2);
+});

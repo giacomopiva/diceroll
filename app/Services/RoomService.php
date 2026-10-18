@@ -7,6 +7,7 @@ use App\Models\Participant;
 use App\Models\Room;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class RoomService
 {
@@ -29,6 +30,19 @@ class RoomService
         return $id ? $room->participants()->find($id) : null;
     }
 
+    /**
+     * Colori già usati da chi è online adesso (esadecimali minuscoli).
+     * Chi se n'è andato libera il suo colore.
+     *
+     * @return list<string>
+     */
+    public function takenColors(Room $room, ?Participant $except = null): array
+    {
+        return $room->participants()->online()
+            ->when($except, fn ($q) => $q->whereKeyNot($except->id))
+            ->pluck('color')->map(fn ($c) => strtolower($c))->unique()->values()->all();
+    }
+
     /** Entra nella stanza; se il browser è già dentro aggiorna nickname e colore. */
     public function join(Room $room, string $nickname, string $color, Request $request): Participant
     {
@@ -38,6 +52,10 @@ class RoomService
         ];
 
         $participant = $this->currentParticipant($room, $request);
+
+        if (in_array($data['color'], $this->takenColors($room, $participant), true)) {
+            throw ValidationException::withMessages(['color' => 'Questo colore è già usato da un altro giocatore.']);
+        }
 
         if ($participant) {
             $participant->update($data);

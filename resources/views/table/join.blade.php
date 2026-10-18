@@ -20,7 +20,7 @@
 
     <div class="field" style="display:flex;flex-direction:column;gap:6px;font-size:.9rem;color:var(--muted)">
       Colore dei dadi
-      <div class="swatches" id="swatches" data-initial="{{ old('color') }}"></div>
+      <div class="swatches" id="swatches" data-initial="{{ old('color') }}" data-taken="{{ json_encode($taken) }}"></div>
       <input type="hidden" name="color" id="color" value="{{ old('color') }}">
     </div>
     @error('color')<p class="err">{{ $message }}</p>@enderror

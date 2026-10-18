@@ -5,6 +5,11 @@ export const TYPES = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'];
 export const SIDES = { d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20 };
 export const PAD = 0.9; // margine dentro ogni cella dell'atlante
 
+// Larghezza dello smusso degli spigoli (solo resa grafica), in unità di scena.
+export const BEVEL = { d4: 0.06, d6: 0.08, d8: 0.07, d10: 0.06, d12: 0.06, d20: 0.05 };
+// Punto della cella (prima di PAD) fuori da ogni faccia: dove drawCell lascia il colore pieno del dado.
+const FLAT_UV = [0.04, 0.04];
+
 const PHI = (1 + Math.sqrt(5)) / 2;
 
 function cubeVerts() { const v = []; for (const x of [-1, 1]) for (const y of [-1, 1]) for (const z of [-1, 1]) v.push([x, y, z]); return v; }
@@ -94,8 +99,29 @@ function faceFrame(proto, f) {
   if (proto.type === 'd6') up = pts[0].clone().add(pts[1]).normalize(); // verso il centro di un lato
   else up = pts[dists.findIndex((d) => d > R - 1e-4)].clone().normalize(); // verso il vertice più lontano
   const right = new THREE.Vector3().crossVectors(up, f.n);
-  f.uv = pts.map((p) => [0.5 + p.dot(right) / (2 * R), 0.5 + p.dot(up) / (2 * R)]);
-  f.inc = incircle(f.uv);
+  f.frame = { c: f.c, right, up, R };
+  f.uv = pts.map((p) => uvOf(f, p.add(f.c)));
+}
+
+// Coordinate UV (0..1 sulla faccia) di un punto 3D, proiettato nel sistema della faccia.
+function uvOf(f, p) {
+  const { c, right, up, R } = f.frame;
+  const dx = p.x - c.x, dy = p.y - c.y, dz = p.z - c.z;
+  return [0.5 + (dx * right.x + dy * right.y + dz * right.z) / (2 * R), 0.5 + (dx * up.x + dy * up.y + dz * up.z) / (2 * R)];
+}
+
+// Faccia ridotta: ogni lato rientra di `e` nel piano della faccia. Calcola anche il cerchio dove sta il numero.
+function insetFace(proto, f, e) {
+  const n = f.idx.length, a = new THREE.Vector3(), b = new THREE.Vector3();
+  f.inset = f.idx.map((m, k) => {
+    const P = proto.V[m];
+    a.subVectors(proto.V[f.idx[(k + n - 1) % n]], P).normalize();
+    b.subVectors(proto.V[f.idx[(k + 1) % n]], P).normalize();
+    const theta = Math.acos(THREE.MathUtils.clamp(a.dot(b), -1, 1));
+    return P.clone().add(a.add(b).normalize().multiplyScalar(e / Math.sin(theta / 2)));
+  });
+  f.insetUv = f.inset.map((p) => uvOf(f, p));
+  f.inc = incircle(f.insetUv);
 }
 
 // Cerchio più grande dentro il poligono (in coordinate UV): è lì che va il numero.
@@ -131,21 +157,65 @@ function incircle(poly) {
 function atlasLayout(n) { const cols = Math.ceil(Math.sqrt(n)); return { cols, rows: Math.ceil(n / cols) }; }
 export function cellOf(proto, fi) { return proto.type === 'd4' ? fi : proto.faces[fi].value - 1; }
 
-function buildGeometry(proto) {
+// Posizione nell'atlante di un punto (u, w) in coordinate della cella.
+function atlasUV(proto, fi, u, w) {
+  const { cols, rows } = proto.atlas, cell = cellOf(proto, fi), cx = cell % cols, cy = Math.floor(cell / cols);
+  return [(cx + 0.5 + (u - 0.5) * PAD) / cols, 1 - (cy + 1 - (0.5 + (w - 0.5) * PAD)) / rows];
+}
+
+/**
+ * Mesh disegnata con gli spigoli smussati (non indicizzata: position, normal, uv).
+ * Facce ridotte nello stesso piano + una striscia per ogni spigolo + un tappo per ogni vertice:
+ * la forma resta dentro il poliedro esatto, che continua a essere il corpo fisico.
+ */
+export function buildBeveledGeometry(proto, e) {
   const pos = [], nor = [], uv = [], g = new THREE.BufferGeometry();
-  const { cols, rows } = proto.atlas;
-  proto.faces.forEach((f, fi) => {
-    const cell = cellOf(proto, fi), cx = cell % cols, cy = Math.floor(cell / cols);
-    for (let k = 1; k < f.idx.length - 1; k++) {
-      for (const q of [0, k, k + 1]) {
-        const v = proto.V[f.idx[q]];
-        pos.push(v.x, v.y, v.z);
-        nor.push(f.n.x, f.n.y, f.n.z);
-        const u = 0.5 + (f.uv[q][0] - 0.5) * PAD, w = 0.5 + (f.uv[q][1] - 0.5) * PAD;
-        uv.push((cx + u) / cols, 1 - (cy + 1 - w) / rows);
-      }
-    }
+  const F = proto.faces;
+  F.forEach((f) => insetFace(proto, f, e));
+
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3();
+  // Un triangolo con la normale geometrica verso l'esterno; v = [{p, n, uv}, ...]
+  const tri = (v) => {
+    ab.subVectors(v[1].p, v[0].p); ac.subVectors(v[2].p, v[0].p);
+    const sum = v[0].n.clone().add(v[1].n).add(v[2].n);
+    if (ab.cross(ac).dot(sum) < 0) v = [v[0], v[2], v[1]];
+    for (const q of v) { pos.push(q.p.x, q.p.y, q.p.z); nor.push(q.n.x, q.n.y, q.n.z); uv.push(q.uv[0], q.uv[1]); }
+  };
+
+  F.forEach((f, fi) => {
+    const pts = f.inset.map((p, k) => ({ p, n: f.n, uv: atlasUV(proto, fi, ...f.insetUv[k]) }));
+    for (let k = 1; k < pts.length - 1; k++) tri([pts[0], pts[k], pts[k + 1]]);
   });
+
+  // Strisce sugli spigoli: ogni spigolo una volta sola (dal lato della faccia con indice minore).
+  const flat = (fi) => atlasUV(proto, fi, ...FLAT_UV);
+  F.forEach((A, ai) => A.idx.forEach((v, k) => {
+    const w = A.idx[(k + 1) % A.idx.length];
+    const bi = F.findIndex((B) => B !== A && B.idx.some((x, j) => x === w && B.idx[(j + 1) % B.idx.length] === v));
+    if (bi < ai) return;
+    const B = F[bi], j = B.idx.indexOf(w), kw = (k + 1) % A.idx.length, jv = (j + 1) % B.idx.length;
+    const q = [
+      { p: A.inset[k], n: A.n, uv: flat(ai) }, { p: A.inset[kw], n: A.n, uv: flat(ai) },
+      { p: B.inset[j], n: B.n, uv: flat(ai) }, { p: B.inset[jv], n: B.n, uv: flat(ai) },
+    ];
+    tri([q[0], q[1], q[2]]); tri([q[0], q[2], q[3]]);
+  }));
+
+  // Tappi sui vertici: i punti ridotti delle facce che condividono il vertice, a ventaglio dal baricentro.
+  proto.V.forEach((V, m) => {
+    const axis = V.clone().normalize();
+    const e1 = new THREE.Vector3().crossVectors(axis, Math.abs(axis.y) < 0.9 ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(1, 0, 0)).normalize();
+    const e2 = new THREE.Vector3().crossVectors(axis, e1);
+    const ring = [];
+    F.forEach((f, fi) => { const k = f.idx.indexOf(m); if (k >= 0) ring.push({ p: f.inset[k], n: f.n, uv: flat(fi) }); });
+    const ang = (q) => Math.atan2(q.p.dot(e2), q.p.dot(e1));
+    ring.sort((x, y) => ang(x) - ang(y));
+    const mid = { p: new THREE.Vector3(), n: axis, uv: ring[0].uv };
+    ring.forEach((q) => mid.p.add(q.p));
+    mid.p.divideScalar(ring.length);
+    ring.forEach((q, i) => tri([mid, q, ring[(i + 1) % ring.length]]));
+  });
+
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -163,7 +233,7 @@ export function buildProto(type) {
   assignValues(proto);
   proto.faces.forEach((f) => faceFrame(proto, f));
   proto.atlas = atlasLayout(proto.faces.length);
-  proto.geometry = buildGeometry(proto);
+  proto.geometry = buildBeveledGeometry(proto, BEVEL[type]);
   return proto;
 }
 

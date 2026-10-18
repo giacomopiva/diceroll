@@ -91,7 +91,7 @@ test('chi sparisce senza avvisare viene tolto dall\'heartbeat di un altro', func
 
 test('la lista iniziale contiene solo chi è davvero online, nel proprio tavolo', function () {
     $room = Room::factory()->create();
-    Participant::factory()->for($room)->create(['nickname' => 'Presente', 'online' => true, 'last_seen_at' => now()]);
+    Participant::factory()->for($room)->create(['nickname' => 'Presente', 'color' => '#b3243a', 'online' => true, 'last_seen_at' => now()]);
     Participant::factory()->for($room)->create(['nickname' => 'Uscito', 'online' => false, 'last_seen_at' => now()]);
     Participant::factory()->for($room)->create(['nickname' => 'Scaduto', 'online' => true, 'last_seen_at' => now()->subMinutes(5)]);
     Participant::factory()->for(Room::factory())->create(['nickname' => 'AltroTavolo', 'online' => true, 'last_seen_at' => now()]);

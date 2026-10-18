@@ -2,9 +2,13 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { PAD, PROTOS, cellOf, resultFace } from './geometry.js';
-import { DT, TRAY, plan, simulate } from './physics.js';
+import { DT, TRAY, mulberry32, plan, simulate } from './physics.js';
 import { playHit } from './audio.js';
 
+// Lato in px di una cella dell'atlante delle facce.
+const CELL = 256;
+// Profondità apparente dell'incisione dei numeri (bumpScale di Three r169).
+const BUMP_SCALE = 1.5;
 const LABEL_FONT = '"Alegreya Sans", "Segoe UI", system-ui, sans-serif';
 // Quanto del cerchio inscritto nella faccia occupa il riquadro del numero più largo del dado.
 const LABEL_FILL = { d6: 0.7, d8: 0.88, d10: 0.86, d12: 0.72, d20: 0.86 };
@@ -17,9 +21,8 @@ function palette(hex) {
   const white = new THREE.Color(1, 1, 1), black = new THREE.Color(0, 0, 0);
   return {
     base: c.getStyle(),
-    hi: c.clone().lerp(white, 0.16).getStyle(),
+    hi: c.clone().lerp(white, 0.08).getStyle(),
     lo: c.clone().lerp(black, 0.2).getStyle(),
-    edge: c.clone().lerp(black, 0.5).getStyle(),
     ink: light ? '#1e1a14' : '#f7f1e3',
     inkShadow: light ? 'rgba(255,255,255,.4)' : 'rgba(0,0,0,.55)',
   };
@@ -42,14 +45,15 @@ function labelBox(ctx, str, size) {
 }
 
 // Disegna il numero con il centro del suo riquadro in (x, y).
-function drawLabel(ctx, str, x, y, size, rot, pal) {
+// In modalità 'bump' il numero è nero pieno (incisione), senza ombra.
+function drawLabel(ctx, str, x, y, size, rot, pal, bump) {
   const b = labelBox(ctx, str, size);
   ctx.save();
   ctx.translate(x, y); ctx.rotate(rot);
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   const ox = -b.w / 2 + b.left, oy = -b.h / 2 + b.asc;
-  ctx.fillStyle = pal.inkShadow; ctx.fillText(str, ox, oy + Math.max(1, size * 0.035));
-  ctx.fillStyle = pal.ink; ctx.fillText(str, ox, oy);
+  if (!bump) { ctx.fillStyle = pal.inkShadow; ctx.fillText(str, ox, oy + Math.max(1, size * 0.035)); }
+  ctx.fillStyle = bump ? '#000' : pal.ink; ctx.fillText(str, ox, oy);
   if (b.ul) ctx.fillRect(-size * 0.2, oy + b.desc + size * 0.06, size * 0.4, size * 0.075);
   ctx.restore();
 }
@@ -62,36 +66,132 @@ function labelSize(ctx, proto, S) {
   return (2 * r * LABEL_FILL[proto.type]) / diag;
 }
 
-function drawCell(ctx, proto, f, cell, C, pal, size) {
+function drawCell(ctx, proto, f, cell, C, pal, size, bump) {
   const { cols } = proto.atlas, x0 = (cell % cols) * C, y0 = Math.floor(cell / cols) * C;
   const P = (u, v) => [x0 + (0.5 + (u - 0.5) * PAD) * C, y0 + (1 - (0.5 + (v - 0.5) * PAD)) * C];
-  ctx.fillStyle = pal.base; ctx.fillRect(x0, y0, C, C);
-  ctx.beginPath();
-  f.uv.forEach(([u, v], i) => { const [x, y] = P(u, v); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
-  ctx.closePath();
   const [mx, my] = P(f.inc.u, f.inc.v);
-  const g = ctx.createRadialGradient(mx, my - C * 0.1, C * 0.03, mx, my, C * 0.55);
-  g.addColorStop(0, pal.hi); g.addColorStop(1, pal.lo);
-  ctx.fillStyle = g; ctx.fill();
-  ctx.lineJoin = 'round'; ctx.lineWidth = C * 0.06; ctx.strokeStyle = pal.edge; ctx.stroke();
+  if (bump) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(x0, y0, C, C); // superficie: alta
+  } else {
+    ctx.fillStyle = pal.base; ctx.fillRect(x0, y0, C, C);
+    ctx.beginPath();
+    f.uv.forEach(([u, v], i) => { const [x, y] = P(u, v); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+    ctx.closePath();
+    const g = ctx.createRadialGradient(mx, my - C * 0.1, C * 0.03, mx, my, C * 0.55);
+    g.addColorStop(0, pal.hi); g.addColorStop(1, pal.lo);
+    ctx.fillStyle = g; ctx.fill();
+  }
 
   if (proto.type === 'd4') {
     const S = C * PAD;
     f.idx.forEach((vi, k) => {
       const [u, v] = f.uv[k];
       const [x, y] = P(0.5 + (u - 0.5) * 0.56, 0.5 + (v - 0.5) * 0.56);
-      drawLabel(ctx, String(vi + 1), x, y, S * 0.22, Math.atan2(u - 0.5, v - 0.5), pal);
+      drawLabel(ctx, String(vi + 1), x, y, S * 0.22, Math.atan2(u - 0.5, v - 0.5), pal, bump);
     });
   } else {
-    drawLabel(ctx, String(f.value), mx, my, size, 0, pal);
+    drawLabel(ctx, String(f.value), mx, my, size, 0, pal, bump);
   }
 }
 
-/** Disegna l'atlante delle facce di un tipo di dado (celle C×C) nel colore dato. */
-export function drawAtlas(ctx, proto, hex, C) {
+/**
+ * Disegna l'atlante delle facce di un tipo di dado (celle C×C) nel colore dato.
+ * mode 'bump': mappa d'altezza in bianco e nero (numeri incavati), senza colore né bordi.
+ */
+export function drawAtlas(ctx, proto, hex, C, mode = 'color') {
   const pal = palette(hex);
   const size = proto.type === 'd4' ? 0 : labelSize(ctx, proto, C * PAD);
-  proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal, size));
+  proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal, size, mode === 'bump'));
+}
+
+/* ---------------- Cornice di legno ---------------- */
+const RIM = 0.75, RIM_H = 0.9, RIM_ROUND = 0.22; // larghezza, altezza e raggio di raccordo della cornice
+const WOOD_W = 2048, WOOD_H = 1024, WOOD_TILE = 6.4; // texture del legno: px e unità di scena per ripetizione
+
+// Venatura del legno disegnata nel canvas (la fibra corre lungo x). Seed fisso e onde periodiche in x:
+// la texture si ripete senza giunture e il legno è lo stesso per tutti.
+function paintWood(ctx, w, h) {
+  const rnd = mulberry32(7), TAU = Math.PI * 2;
+  const dark = [62, 36, 18], light = [140, 90, 52];
+  // fasce larghe di tono, come gli anelli di crescita visti di taglio
+  const ph = Array.from({ length: 4 }, () => rnd() * TAU);
+  for (let y = 0; y < h; y++) {
+    const t = 0.5 + 0.28 * Math.sin(y * 0.021 + ph[0]) + 0.16 * Math.sin(y * 0.067 + ph[1]) + 0.1 * Math.sin(y * 0.19 + ph[2]);
+    const k = Math.min(1, Math.max(0, t));
+    ctx.fillStyle = `rgb(${dark.map((d, i) => Math.round(d + (light[i] - d) * k)).join(',')})`;
+    ctx.fillRect(0, y, w, 1);
+  }
+  // fibre: linee sottili ondulate su tutta la larghezza
+  for (let i = 0; i < 700; i++) {
+    const y = rnd() * h, amp = 1 + rnd() * 7, m = 1 + Math.floor(rnd() * 5), p0 = rnd() * TAU;
+    ctx.strokeStyle = rnd() < 0.6 ? `rgba(28,13,4,${0.06 + rnd() * 0.2})` : `rgba(190,140,90,${0.05 + rnd() * 0.14})`;
+    ctx.lineWidth = 0.5 + rnd() * 1.8;
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += 32) { const yy = y + Math.sin(x / w * TAU * m + p0) * amp; if (x) ctx.lineTo(x, yy); else ctx.moveTo(x, yy); }
+    ctx.stroke();
+  }
+  // pori: trattini scuri corti lungo la fibra
+  for (let i = 0; i < 5000; i++) {
+    const x = rnd() * (w - 20), y = rnd() * h;
+    ctx.fillStyle = `rgba(25,10,3,${0.12 + rnd() * 0.25})`;
+    ctx.fillRect(x, y, 3 + rnd() * 14, 1);
+  }
+}
+
+// Profilo della sezione (d = distanza dalla parete, h = altezza): fondo piatto, lato interno e esterno
+// verticali, spigoli superiori raccordati ad arco. Percorso chiuso.
+function rimProfile() {
+  const pts = [[0, 0], [RIM, 0]], arc = 6;
+  const corner = (cx, cy, a0, a1) => { for (let i = 0; i <= arc; i++) { const a = a0 + (a1 - a0) * i / arc; pts.push([cx + RIM_ROUND * Math.cos(a), cy + RIM_ROUND * Math.sin(a)]); } };
+  corner(RIM - RIM_ROUND, RIM_H - RIM_ROUND, 0, Math.PI / 2);  // spigolo esterno
+  corner(RIM_ROUND, RIM_H - RIM_ROUND, Math.PI / 2, Math.PI);  // spigolo interno
+  return pts;
+}
+
+/**
+ * Cornice esagonale come telaio di sei listelli con giunti a 45°: la fibra del legno segue ogni lato.
+ * Ogni anello del profilo è posto sui vertici dell'esagono allargato di d (vertice a R + d/cos 30°).
+ * Geometria non indicizzata con normali morbide lungo il profilo e nette tra un lato e l'altro.
+ */
+function buildRimGeometry(R) {
+  const prof = rimProfile(), n = prof.length, cos30 = Math.cos(Math.PI / 6);
+  // normali 2D (d, h) dei segmenti del profilo chiuso, verso l'esterno (il percorso è antiorario in (d, h))
+  const segN = prof.map((p, i) => { const q = prof[(i + 1) % n], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy); return [dy / l, -dx / l]; });
+  const vertN = (i, side) => { // normale del punto i sul segmento `side` (i o i-1): morbida se l'angolo è dolce
+    const a = segN[(i + n - 1) % n], b = segN[i];
+    const d = a[0] * b[0] + a[1] * b[1];
+    if (d > 0.7) { const x = a[0] + b[0], y = a[1] + b[1], l = Math.hypot(x, y); return [x / l, y / l]; }
+    return side === 'prev' ? a : b;
+  };
+  const tiles = Math.max(1, Math.round(6 * R / WOOD_TILE));
+  const lens = [0]; for (let i = 1; i <= n; i++) lens.push(lens[i - 1] + Math.hypot(prof[i % n][0] - prof[i - 1][0], prof[i % n][1] - prof[i - 1][1]));
+  const pos = [], nor = [], uv = [], g = new THREE.BufferGeometry();
+  const P = (k, d, h) => { const a = k * Math.PI / 3, r = R + d / cos30; return new THREE.Vector3(r * Math.cos(a), h, r * Math.sin(a)); };
+  for (let s = 0; s < 6; s++) {
+    const am = (s + 0.5) * Math.PI / 3, sx = Math.cos(am), sz = Math.sin(am);
+    const N = (nd, nh) => new THREE.Vector3(nd * sx, nh, nd * sz);
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const a0 = P(s, prof[i][0], prof[i][1]), a1 = P(s + 1, prof[i][0], prof[i][1]);
+      const b0 = P(s, prof[j][0], prof[j][1]), b1 = P(s + 1, prof[j][0], prof[j][1]);
+      const nI = vertN(i, 'next'), nJ = vertN(j, 'prev');
+      const q = [
+        { p: a0, n: N(...nI), uv: [s / 6 * tiles, lens[i] / lens[n]] }, { p: a1, n: N(...nI), uv: [(s + 1) / 6 * tiles, lens[i] / lens[n]] },
+        { p: b1, n: N(...nJ), uv: [(s + 1) / 6 * tiles, lens[i + 1] / lens[n]] }, { p: b0, n: N(...nJ), uv: [s / 6 * tiles, lens[i + 1] / lens[n]] },
+      ];
+      for (const t of [[0, 1, 2], [0, 2, 3]]) {
+        let v = t.map((k) => q[k]);
+        const geo = new THREE.Vector3().subVectors(v[1].p, v[0].p).cross(new THREE.Vector3().subVectors(v[2].p, v[0].p));
+        if (geo.dot(v[0].n.clone().add(v[1].n).add(v[2].n)) < 0) v = [v[0], v[2], v[1]];
+        for (const w of v) { pos.push(w.p.x, w.p.y, w.p.z); nor.push(w.n.x, w.n.y, w.n.z); uv.push(w.uv[0], w.uv[1]); }
+      }
+    }
+  }
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeBoundingSphere();
+  return g;
 }
 
 /**
@@ -105,7 +205,7 @@ export function createScene(canvas, stage, opts = {}) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.toneMappingExposure = 1.0;
   const ANISO = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
@@ -146,39 +246,30 @@ export function createScene(canvas, stage, opts = {}) {
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
     }),
   });
-  const woodMat = new THREE.MeshStandardMaterial({
-    roughness: 0.55, metalness: 0,
-    map: canvasTexture(1024, 128, (ctx, w, h) => {
-      ctx.fillStyle = '#5b3920'; ctx.fillRect(0, 0, w, h);
-      for (let i = 0; i < 90; i++) {
-        const y = Math.random() * h, amp = 2 + Math.random() * 5, ph = Math.random() * 6;
-        ctx.strokeStyle = Math.random() < 0.5 ? 'rgba(30,15,5,0.35)' : 'rgba(150,100,60,0.18)';
-        ctx.lineWidth = 0.6 + Math.random() * 1.6;
-        ctx.beginPath();
-        for (let x = 0; x <= w; x += 16) { const yy = y + Math.sin(x / 140 + ph) * amp; if (x) ctx.lineTo(x, yy); else ctx.moveTo(x, yy); }
-        ctx.stroke();
-      }
-    }),
+  // Legno verniciato: stessa venatura come colore e come rilievo (dato, non colore: niente sRGB).
+  const woodCv = document.createElement('canvas'); woodCv.width = WOOD_W; woodCv.height = WOOD_H;
+  paintWood(woodCv.getContext('2d'), WOOD_W, WOOD_H);
+  const woodTex = (srgb) => {
+    const t = new THREE.CanvasTexture(woodCv);
+    t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.wrapS = THREE.RepeatWrapping; t.anisotropy = ANISO;
+    return t;
+  };
+  const woodMat = new THREE.MeshPhysicalMaterial({
+    map: woodTex(true), bumpMap: woodTex(false), bumpScale: 0.6,
+    roughness: 0.5, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.28,
   });
   const tableMat = new THREE.MeshStandardMaterial({ color: 0x17120e, roughness: 0.85 });
 
   // Vaschetta esagonale di dimensioni fisse (TRAY): si adatta solo la camera.
-  // Il feltro è un esagono con i vertici sull'asse x, come le pareti fisiche; la cornice è un anello
-  // esagonale estruso, con lo spigolo superiore smussato.
-  const RIM = 0.75, RIM_H = 0.9, BEVEL = 0.07;
+  // Il feltro è un esagono con i vertici sull'asse x, come le pareti fisiche; la cornice è un telaio di
+  // legno a sei listelli (buildRimGeometry) con la parete interna alla distanza delle pareti fisiche.
   (function buildTray() {
     const g = new THREE.Group(), { R } = TRAY;
     const felt = new THREE.Mesh(new THREE.CircleGeometry(R, 6), feltMat);
     felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; g.add(felt);
 
-    const hex = (r) => Array.from({ length: 6 }, (_, k) => new THREE.Vector2(r * Math.cos(k * Math.PI / 3), r * Math.sin(k * Math.PI / 3)));
-    // Spessore RIM misurato perpendicolare ai lati; lo smusso allarga il contorno, il foro lo compensa.
-    const shape = new THREE.Shape(hex(R + (RIM - BEVEL) / Math.cos(Math.PI / 6)));
-    shape.holes.push(new THREE.Path(hex(R + BEVEL / Math.cos(Math.PI / 6))));
-    const rimGeo = new THREE.ExtrudeGeometry(shape, { depth: RIM_H - 2 * BEVEL, bevelEnabled: true, bevelThickness: BEVEL, bevelSize: BEVEL, bevelSegments: 3, curveSegments: 1 });
-    woodMat.map.repeat.set(0.08, 0.5); // le UV dell'estrusione sono in unità di scena
-    const rim = new THREE.Mesh(rimGeo, woodMat);
-    rim.rotation.x = -Math.PI / 2; rim.position.y = BEVEL;
+    const rim = new THREE.Mesh(buildRimGeometry(R), woodMat);
     rim.castShadow = true; rim.receiveShadow = true; g.add(rim);
 
     const table = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), tableMat);
@@ -208,13 +299,30 @@ export function createScene(canvas, stage, opts = {}) {
   new ResizeObserver(resize).observe(stage);
 
   /* ---------------- Dadi e playback ---------------- */
-  const matCache = new Map();
+  const matCache = new Map(), bumpCache = new Map();
+  // Bump map per tipo (indipendente dal colore). Disegnata a metà risoluzione e ridisegnata a piena:
+  // la sfocatura di 1-2 px ammorbidisce i bordi senza ctx.filter (Safari < 18).
+  function bumpTexture(proto) {
+    if (bumpCache.has(proto.type)) return bumpCache.get(proto.type);
+    const C = CELL, { cols, rows } = proto.atlas, W = cols * C, H = rows * C;
+    const half = document.createElement('canvas'); half.width = W / 2; half.height = H / 2;
+    drawAtlas(half.getContext('2d'), proto, '#fff', C / 2, 'bump');
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(half, 0, 0, W, H);
+    const t = new THREE.CanvasTexture(cv); // dato, non colore: niente sRGB
+    t.colorSpace = THREE.NoColorSpace; t.anisotropy = ANISO;
+    bumpCache.set(proto.type, t);
+    return t;
+  }
   function diceMaterial(proto, hex) {
     const key = proto.type + '|' + hex;
     if (matCache.has(key)) return matCache.get(key);
-    const C = 160, { cols, rows } = proto.atlas;
+    const C = CELL, { cols, rows } = proto.atlas;
     const map = canvasTexture(cols * C, rows * C, (ctx) => drawAtlas(ctx, proto, hex, C));
-    const mat = new THREE.MeshPhysicalMaterial({ map, roughness: 0.32, metalness: 0, clearcoat: 0.85, clearcoatRoughness: 0.16 });
+    const mat = new THREE.MeshPhysicalMaterial({ map, roughness: 0.32, metalness: 0, clearcoat: 0.85, clearcoatRoughness: 0.16,
+      bumpMap: bumpTexture(proto), bumpScale: BUMP_SCALE });
     matCache.set(key, mat);
     return mat;
   }

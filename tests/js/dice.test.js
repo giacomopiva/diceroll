@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { PROTOS, SIDES, TYPES, resultFace, symmetryQuat } from '../../resources/js/dice/geometry.js';
+import { BEVEL, PROTOS, SIDES, TYPES, resultFace, symmetryQuat } from '../../resources/js/dice/geometry.js';
 import { MAX_STEPS, TRAY, insideTray, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
 import { selfTest } from '../../resources/js/dice/selftest.js';
 
@@ -31,14 +31,93 @@ describe.each(TYPES)('geometria %s', (type) => {
   it('il centro del numero sta dentro ogni faccia, lontano dai lati', () => {
     for (const f of proto.faces) {
       const { u, v, r } = f.inc;
-      expect(r, `faccia ${f.value}`).toBeGreaterThan(0.2);
-      const n = f.uv.length;
+      // calcolato sulla faccia ridotta: lo smusso toglie spazio, soprattutto al d20 (facce piccole)
+      expect(r, `faccia ${f.value}`).toBeGreaterThan(0.17);
+      const n = f.insetUv.length;
       for (let i = 0; i < n; i++) {
-        const [ax, ay] = f.uv[i], [bx, by] = f.uv[(i + 1) % n];
+        const [ax, ay] = f.insetUv[i], [bx, by] = f.insetUv[(i + 1) % n];
         const d = Math.abs((u - ax) * (by - ay) - (v - ay) * (bx - ax)) / Math.hypot(bx - ax, by - ay);
         expect(d, `faccia ${f.value}, lato ${i}`).toBeGreaterThanOrEqual(r - 1e-4);
       }
     }
+  });
+
+  describe('spigoli smussati', () => {
+    const e = BEVEL[type];
+    const P = proto.geometry.getAttribute('position');
+    const tris = [];
+    for (let i = 0; i < P.count; i += 3) tris.push([0, 1, 2].map((k) => new THREE.Vector3().fromBufferAttribute(P, i + k)));
+    const area = (t) => new THREE.Vector3().subVectors(t[1], t[0]).cross(new THREE.Vector3().subVectors(t[2], t[0])).length() / 2;
+
+    it('le facce ridotte sono coplanari con la faccia', () => {
+      for (const f of proto.faces) for (const p of f.inset) expect(Math.abs(f.n.dot(p) - f.n.dot(f.c))).toBeLessThan(1e-6);
+    });
+
+    it('ogni punto ridotto dista esattamente e dai due lati originali che lo toccano', () => {
+      const dir = new THREE.Vector3();
+      for (const f of proto.faces) f.idx.forEach((_, k) => {
+        const n = f.idx.length, p = f.inset[k];
+        for (const [i0, i1] of [[(k + n - 1) % n, k], [k, (k + 1) % n]]) {
+          // distanza dalla retta del lato (il piede può cadere fuori dal segmento sugli angoli ottusi)
+          dir.subVectors(proto.V[f.idx[i1]], proto.V[f.idx[i0]]).normalize();
+          const d = p.clone().sub(proto.V[f.idx[i0]]).cross(dir).length();
+          expect(d).toBeCloseTo(e, 6);
+        }
+      });
+    });
+
+    it('la mesh sta dentro il poliedro esatto', () => {
+      const maxR = Math.max(...proto.V.map((v) => v.length()));
+      for (const t of tris) for (const p of t) {
+        expect(p.length()).toBeLessThanOrEqual(maxR + 1e-6);
+        for (const f of proto.faces) expect(f.n.dot(p)).toBeLessThanOrEqual(f.n.dot(f.c) + 1e-6);
+      }
+    });
+
+    it('le normali dei triangoli escono dal solido', () => {
+      for (const t of tris) {
+        const n = new THREE.Vector3().subVectors(t[1], t[0]).cross(new THREE.Vector3().subVectors(t[2], t[0]));
+        const bary = t[0].clone().add(t[1]).add(t[2]).divideScalar(3);
+        expect(n.dot(bary)).toBeGreaterThan(0);
+      }
+    });
+
+    it('la superficie è chiusa: ogni spigolo compare due volte, in versi opposti', () => {
+      const key = (p) => [p.x, p.y, p.z].map((c) => Math.round(c * 1e5)).join(',');
+      const count = new Map();
+      for (const t of tris) for (let i = 0; i < 3; i++) {
+        const a = key(t[i]), b = key(t[(i + 1) % 3]);
+        if (a === b) continue;
+        count.set(a + '>' + b, (count.get(a + '>' + b) ?? 0) + 1);
+      }
+      for (const [k, n] of count) {
+        const [a, b] = k.split('>');
+        expect(n, k).toBe(1);
+        expect(count.get(b + '>' + a), k).toBe(1);
+      }
+    });
+
+    it("l'area è tra il 90% e il 100% di quella del poliedro", () => {
+      const sum = (ts) => ts.reduce((s, t) => s + area(t), 0);
+      const exact = proto.faces.reduce((s, f) => s + sum(f.idx.slice(1, -1).map((_, k) => [proto.V[f.idx[0]], proto.V[f.idx[k + 1]], proto.V[f.idx[k + 2]]])), 0);
+      const ratio = sum(tris) / exact;
+      expect(ratio).toBeGreaterThan(0.9);
+      expect(ratio).toBeLessThanOrEqual(1 + 1e-6);
+    });
+
+    it('i punti di colore pieno restano fuori dal poligono della faccia, dentro la cella', () => {
+      // (0.04, 0.04) in coordinate di cella: usato da strisce e tappi
+      const [x, y] = [0.04, 0.04];
+      for (const f of proto.faces) {
+        const n = f.uv.length;
+        let inside = true;
+        for (let i = 0; i < n; i++) {
+          const [ax, ay] = f.uv[i], [bx, by] = f.uv[(i + 1) % n];
+          if ((bx - ax) * (y - ay) - (by - ay) * (x - ax) < 0) inside = false; // antiorario: dentro = a sinistra
+        }
+        expect(inside).toBe(false);
+      }
+    });
   });
 
   it('le facce opposte sommano a n+1 (dove esistono)', () => {
