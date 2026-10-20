@@ -328,9 +328,19 @@ export function createScene(canvas, stage, opts = {}) {
   }
 
   let anims = [], meshes = [], lastSimMs = 0;
+  const byKey = new Map(); // "rollId:index" → mesh, per trovare un dado sul tavolo
+  const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  let hovered = null; // mesh evidenziata
   const q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion();
 
-  function clearDice() { meshes.forEach((m) => scene.remove(m)); meshes = []; }
+  const keyOf = (m) => m.userData.rollId + ':' + m.userData.index;
+  function removeMesh(m) {
+    scene.remove(m);
+    meshes = meshes.filter((x) => x !== m);
+    if (byKey.get(keyOf(m)) === m) byKey.delete(keyOf(m));
+    if (hovered === m) hovered = null;
+  }
+  function clearDice() { meshes.forEach((m) => scene.remove(m)); meshes = []; byKey.clear(); hovered = null; }
 
   function poseDice(a, s) {
     const last = a.steps - 1;
@@ -349,20 +359,27 @@ export function createScene(canvas, stage, opts = {}) {
    * I valori arrivano dal server; qui si legge solo la faccia che il dado disegnato mostra.
    * Lanci contemporanei convivono sul tavolo (ognuno ha la sua fisica, quindi i dadi di lanci diversi
    * non si urtano); il tavolo si sgombra solo quando parte un lancio e nessun altro è in corso.
-   * @param {{color: string, list: string[], values: number[], seed: number, onDone?: (seen: number[]) => void}} roll
+   * Un rilancio (`rerollOf`) non sgombra il tavolo: toglie solo il dado sostituito e riparte da `origin`.
+   * @param {{color: string, list: string[], values: number[], seed: number, id?: number, playerId?: number,
+   *   rerollOf?: {id: number, index: number}|null, origin?: {x: number, z: number}|null,
+   *   onDone?: (seen: number[]) => void}} roll
    */
-  function play({ color, list, values, seed, onDone }) {
+  function play({ color, list, values, seed, id = 0, playerId = 0, rerollOf = null, origin = null, onDone }) {
     const t0 = performance.now();
-    const sim = simulate(list, seed);
+    const sim = simulate(list, seed, rerollOf && origin ? { origin } : {});
     const qRs = plan(list, values, sim);
     lastSimMs = performance.now() - t0;
 
-    if (!anims.length) clearDice();
+    if (rerollOf) {
+      const old = byKey.get(rerollOf.id + ':' + rerollOf.index);
+      if (old) removeMesh(old);
+    } else if (!anims.length) clearDice();
     const dice = list.map((type, i) => {
       const proto = PROTOS[type];
       const mesh = new THREE.Mesh(proto.geometry, diceMaterial(proto, color));
       mesh.castShadow = true; mesh.receiveShadow = true;
-      scene.add(mesh); meshes.push(mesh);
+      mesh.userData = { rollId: id, index: i, playerId, resting: false };
+      scene.add(mesh); meshes.push(mesh); byKey.set(keyOf(mesh), mesh);
       return { mesh, proto, frames: sim.frames[i], qR: qRs[i] };
     });
     const a = { dice, steps: sim.steps, sounds: sim.sounds, si: 0, start: performance.now(), onDone };
@@ -387,7 +404,39 @@ export function createScene(canvas, stage, opts = {}) {
     if (!finished.length) return;
     anims = anims.filter((a) => !finished.includes(a));
     for (const a of finished) {
+      a.dice.forEach((d) => { d.mesh.userData.resting = true; });
       if (a.onDone) a.onDone(a.dice.map((d) => d.proto.faces[resultFace(d.proto, d.mesh.quaternion)].value));
+    }
+  }
+
+  /** Dado sotto il puntatore (coordinate di pagina), con la sua posizione sul tavolo. */
+  function pick(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return null;
+    ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    raycaster.setFromCamera(ndc, camera);
+    const hit = raycaster.intersectObjects(meshes, false)[0];
+    if (!hit) return null;
+    const { rollId, index, playerId, resting } = hit.object.userData, p = hit.object.position;
+    return { rollId, index, playerId, resting, position: { x: p.x, z: p.z } };
+  }
+
+  function positionOf(rollId, index) {
+    const m = byKey.get(rollId + ':' + index);
+    return m ? { x: m.position.x, z: m.position.z } : null;
+  }
+
+  /** Evidenzia un dado (scala 1,06 con transizione nel loop); null toglie l'evidenziazione. */
+  function setHover(rollId, index = null) {
+    hovered = rollId == null || index == null ? null : byKey.get(rollId + ':' + index) || null;
+  }
+
+  function updateHover(dt) {
+    const k = 1 - Math.exp(-dt / 40); // ~120 ms per arrivare a regime
+    for (const m of meshes) {
+      const target = m === hovered ? 1.06 : 1;
+      if (Math.abs(m.scale.x - target) > 0.001) m.scale.setScalar(m.scale.x + (target - m.scale.x) * k);
+      else if (m.scale.x !== target) m.scale.setScalar(target);
     }
   }
 
@@ -400,11 +449,12 @@ export function createScene(canvas, stage, opts = {}) {
       frameCount = 0; acc = 0;
     }
     updateAnims(now);
+    updateHover(dt);
     renderer.render(scene, camera);
   }
 
   resize();
   requestAnimationFrame(loop);
 
-  return { play, clear: clearDice };
+  return { play, clear: clearDice, pick, positionOf, setHover };
 }

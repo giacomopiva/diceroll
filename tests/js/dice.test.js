@@ -208,6 +208,67 @@ describe('simulazione e orientamento', () => {
     }
   }, 60000);
 
+  // Valori calcolati prima di introdurre `opts.origin`: senza origine la fisica deve restare identica,
+  // quindi stesse chiamate a rng() nello stesso ordine.
+  it('regressione della fisica: senza origine le posizioni finali non cambiano', () => {
+    const cases = [
+      { list: ['d20'], seed: 1, steps: 156, pos: [[-2.2898, 1.0912]] },
+      { list: ['d6', 'd8', 'd12'], seed: 2024, steps: 110, pos: [[-5.7376, 4.1274], [-2.7731, -0.3327], [-7.8766, 0.2138]] },
+      {
+        list: ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd20', 'd10', 'd8', 'd6'], seed: 77, steps: 234,
+        pos: [[-0.7615, -4.3702], [3.8568, -2.6324], [5.7894, -3.0309], [-0.4252, -3.061], [2.8094, -6.9202], [7.0329, -0.1552], [2.5591, 3.4384], [3.1706, -0.084], [5.8519, 1.0566], [0.6223, 2.421]],
+      },
+    ];
+    for (const c of cases) {
+      const sim = simulate(c.list, c.seed);
+      expect(sim.steps).toBe(c.steps);
+      c.pos.forEach(([x, z], i) => {
+        const p = frameOf(sim, i, sim.steps - 1).p;
+        expect(p.x).toBeCloseTo(x, 3);
+        expect(p.z).toBeCloseTo(z, 3);
+      });
+    }
+  });
+
+  it('con origine: parte da lì (riportata dentro), si ferma dentro, plan() senza discrepanze', () => {
+    const rnd = mulberry32(4242);
+    const origins = [];
+    for (let k = 0; k < 6; k++) { // vicino ai vertici
+      const a = k * Math.PI / 3;
+      origins.push({ x: TRAY.R * 0.93 * Math.cos(a), z: TRAY.R * 0.93 * Math.sin(a) });
+    }
+    origins.push({ x: 30, z: -20 }, { x: -50, z: 50 }); // volutamente fuori
+    while (origins.length < 50) {
+      const x = (rnd() * 2 - 1) * TRAY.R, z = (rnd() * 2 - 1) * TRAY.A;
+      if (insideTray(x, z)) origins.push({ x, z });
+    }
+    origins.forEach((origin, n) => {
+      const type = TYPES[n % TYPES.length];
+      const sim = simulate([type], 1000 + n, { origin });
+      const p0 = frameOf(sim, 0, 0).p, p1 = frameOf(sim, 0, sim.steps - 1).p;
+      expect(insideTray(p0.x, p0.z, 1), `partenza ${n}`).toBe(true);
+      expect(insideTray(p1.x, p1.z), `arrivo ${n}`).toBe(true);
+      expect(sim.asleep, `sonno ${n}`).toBe(true);
+      expect(sim.steps).toBeLessThanOrEqual(MAX_STEPS);
+      const value = 1 + Math.floor(rnd() * SIDES[type]);
+      expect(shownValue(type, sim, 0, plan([type], [value], sim)[0]), `valore ${n}`).toBe(value);
+    });
+  }, 60000);
+
+  it('con origine dentro la vaschetta il dado parte vicino a quel punto', () => {
+    const sim = simulate(['d20'], 5, { origin: { x: 2, z: -1 } });
+    const p = frameOf(sim, 0, 0).p;
+    expect(Math.hypot(p.x - 2, p.z + 1)).toBeLessThan(0.5);
+  });
+
+  it('con origine lo stesso seed dà gli stessi frame', () => {
+    const origin = { x: -3.5, z: 2.25 };
+    const a = simulate(['d20'], 99, { origin }), b = simulate(['d20'], 99, { origin });
+    expect(a.steps).toBe(b.steps);
+    expect(Array.from(a.frames[0])).toEqual(Array.from(b.frames[0]));
+    expect(Array.from(simulate(['d20'], 99).frames[0])).not.toEqual(Array.from(a.frames[0]));
+  });
+
   it('selfTest: 150 lanci con valori casuali, 0 discrepanze', () => {
     const out = selfTest(150, mulberry32(20261018));
     expect(out.dice).toBeGreaterThan(500);

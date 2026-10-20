@@ -29,6 +29,8 @@ Route::prefix('/t/{room}')->where(['room' => Room::CODE_PATTERN])
             ->middleware('throttle:20,1')->name('join');
         Route::post('/rolls', [RollController::class, 'store'])
             ->middleware('throttle:60,1')->name('rolls.store');
+        Route::post('/rolls/{roll}/reroll', [RollController::class, 'reroll'])
+            ->scopeBindings()->middleware('throttle:60,1')->name('rolls.reroll');
         Route::post('/heartbeat', [PresenceController::class, 'heartbeat'])
             ->middleware('throttle:30,1')->name('heartbeat');
         Route::post('/leave', [PresenceController::class, 'leave'])

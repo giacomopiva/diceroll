@@ -19,6 +19,9 @@ const ICONS = {
   d20: '<polygon points="12,2 20.7,7 20.7,17 12,22 3.3,17 3.3,7"/><polygon points="12,6.5 17,15 7,15"/>',
 };
 const MAX_DICE = 40;
+const myId = Number(document.body.dataset.playerId);
+// Da quando premo Lancia (o rilancio un dado) a quando i miei dadi si fermano: il pulsante resta disattivato.
+let rolling = false;
 
 /* ---------------- Scena ---------------- */
 let table = null;
@@ -66,30 +69,65 @@ function renderPool() {
 
 /* ---------------- Registro e toast ---------------- */
 function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+const logEntries = new Map(); // id lancio → <li> del registro
+const rerolled = new Set(); // "idLancio:indice" dei dadi già rilanciati
 function addLogEntry(roll) {
   const log = $('#log');
   const empty = log.querySelector('.empty'); if (empty) empty.remove();
   const li = document.createElement('li');
   const time = new Date(roll.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const tag = roll.reroll_of ? ' <span class="tag-reroll">↻ rilancio</span>' : '';
   li.innerHTML = `<span class="dot" style="background:${esc(roll.player.color)}"></span>
-    <div class="meta"><strong>${esc(roll.player.nickname)}</strong><span>${formulaOf(roll.dice)} · ${time}</span></div>
+    <div class="meta"><strong>${esc(roll.player.nickname)}</strong><span>${formulaOf(roll.dice)}${tag} · ${time}</span></div>
     <span class="sum">…</span>
     <div class="vals"><span class="pending">in rotolamento</span></div>`;
   log.prepend(li);
-  while (log.children.length > 30) log.lastChild.remove();
+  while (log.children.length > 30) { const last = log.lastChild; logEntries.forEach((el, id) => { if (el === last) logEntries.delete(id); }); last.remove(); }
+  logEntries.set(roll.id, li);
   return li;
 }
 // ok === null: lancio dello storico, mai animato qui, quindi niente verifica.
 function fillLogEntry(li, roll, ok) {
   li.querySelector('.sum').textContent = roll.total;
-  const check = ok === null ? '' : `<span class="check ${ok ? '' : 'bad'}">${ok ? '✓ facce = server' : '✗ faccia diversa dal server'}</span>`;
-  li.querySelector('.vals').innerHTML = roll.dice.map((t, i) => `<span class="chip"><i>${t}</i> ${roll.values[i]}</span>`).join('') + check;
+  li._roll = roll;
+  li._check = ok === null ? '' : `<span class="check ${ok ? '' : 'bad'}">${ok ? '✓ facce = server' : '✗ faccia diversa dal server'}</span>`;
+  renderVals(li);
 }
+// Chip dei dadi: barrati se già rilanciati; bottoni (rilancio da tastiera) per i miei dadi ancora sul tavolo.
+function renderVals(li) {
+  const roll = li._roll;
+  if (!roll) return;
+  const chips = roll.dice.map((t, i) => {
+    const key = roll.id + ':' + i, done = rerolled.has(key);
+    const inner = `<i>${t}</i> ${roll.values[i]}`;
+    if (done) return `<span class="chip rerolled" title="rilanciato">${inner}</span>`;
+    if (roll.player.id === myId && table.positionOf(roll.id, i)) {
+      return `<button type="button" class="chip" data-index="${i}" aria-label="Rilancia il ${t} (era ${roll.values[i]})">${inner}</button>`;
+    }
+    return `<span class="chip">${inner}</span>`;
+  }).join('');
+  const upd = roll.combined_total != null ? `<span class="upd">totale aggiornato: ${roll.combined_total}</span>` : '';
+  li.querySelector('.vals').innerHTML = chips + li._check + upd;
+}
+// Aggiorna i chip delle voci già concluse: chiamata a ogni nuovo lancio e a fine animazione.
+function refreshRerollable() {
+  logEntries.forEach((li) => renderVals(li));
+}
+$('#log').addEventListener('click', (e) => {
+  const btn = e.target.closest('button.chip');
+  if (!btn || rolling) return;
+  const li = btn.closest('li'), roll = li && li._roll;
+  if (!roll) return;
+  const index = Number(btn.dataset.index), position = table.positionOf(roll.id, index);
+  if (position) rerollDie(roll.id, index, position);
+});
 function showToast(roll) {
   const t = $('#toast');
   const detail = roll.dice.length > 8 ? formulaOf(roll.dice) : roll.dice.map((ty, i) => `${ty}: ${roll.values[i]}`).join(' · ');
-  t.innerHTML = `<div class="who"><span class="dot" style="background:${esc(roll.player.color)}"></span>${esc(roll.player.nickname)}</div>
-    <div class="detail">${detail}</div><div class="total">${roll.total}</div>`;
+  const verb = roll.reroll_of ? ' rilancia ' + roll.dice[0] + ': ' + roll.values[0] : '';
+  const updated = roll.combined_total != null ? `<div class="detail">totale aggiornato: ${roll.combined_total}</div>` : '';
+  t.innerHTML = `<div class="who"><span class="dot" style="background:${esc(roll.player.color)}"></span>${esc(roll.player.nickname)}${verb}</div>
+    ${roll.reroll_of ? '' : `<div class="detail">${detail}</div>`}<div class="total">${roll.total}</div>${updated}`;
   t.hidden = false;
 }
 function showMessage(text) {
@@ -107,25 +145,31 @@ function startRoll(roll) {
   handled.add(roll.id);
   const entry = addLogEntry(roll);
   $('#toast').hidden = true;
+  if (roll.reroll_of) rerolled.add(roll.reroll_of.id + ':' + roll.reroll_of.index);
   table.play({
     color: roll.player.color, list: roll.dice, values: roll.values, seed: roll.seed,
+    id: roll.id, playerId: roll.player.id, rerollOf: roll.reroll_of, origin: roll.origin,
     onDone(seen) {
       fillLogEntry(entry, roll, seen.every((v, i) => v === roll.values[i]));
+      refreshRerollable();
       showToast(roll);
       // Il pulsante si riabilita quando si fermano i dadi di chi ha lanciato, non quelli degli altri.
       if (roll.player.id === myId) { rolling = false; renderPool(); }
     },
   });
+  refreshRerollable(); // il tavolo può essersi sgombrato, o un dado essere stato rilanciato
 }
 
-for (const roll of JSON.parse($('#history').textContent)) {
+// Storico dal più vecchio al più recente: prima i rilanci noti (per barrare i chip), poi le voci.
+const history = JSON.parse($('#history').textContent);
+for (const roll of history) if (roll.reroll_of) rerolled.add(roll.reroll_of.id + ':' + roll.reroll_of.index);
+for (const roll of history) {
   handled.add(roll.id);
   fillLogEntry(addLogEntry(roll), roll, null);
 }
 
 /* ---------------- Presenza: chi è al tavolo ---------------- */
 // Lista iniziale dal server; poi ParticipantJoined/Left sul canale, heartbeat ogni 20 s e avviso all'uscita.
-const myId = Number(document.body.dataset.playerId);
 const players = new Map(JSON.parse($('#presence').textContent).map((p) => [p.id, p]));
 
 function renderPlayers() {
@@ -161,8 +205,6 @@ addEventListener('pagehide', () => {
 });
 
 /* ---------------- Lancio mio ---------------- */
-// Da quando premo Lancia a quando i miei dadi si fermano: il pulsante resta disattivato.
-let rolling = false;
 async function rollDice(list) {
   if (!list.length || rolling) return;
   rolling = true;
@@ -184,6 +226,59 @@ async function rollDice(list) {
     rolling = false;
     renderPool();
   }
+}
+
+/* ---------------- Rilancio di un dado ---------------- */
+// Il corpo contiene solo indice e punto di partenza: valore e seed li decide il server.
+async function rerollDie(rollId, index, origin) {
+  if (rolling) return;
+  rolling = true;
+  $('#rollBtn').disabled = true;
+  ensureAudio();
+  try {
+    const url = document.body.dataset.rerollUrl.replace('__ROLL__', rollId);
+    const { data } = await window.axios.post(url, { index, origin }, { headers: { 'X-Socket-ID': window.Echo.socketId() } });
+    startRoll(data);
+  } catch (e) {
+    const status = e.response && e.response.status;
+    if (status === 403 || status === 410) location.reload();
+    else if (status === 409) { rerolled.add(rollId + ':' + index); refreshRerollable(); showMessage('Questo dado è già stato rilanciato.'); }
+    else if (status === 429) showMessage('Troppi lanci, aspetta un momento.');
+    else showMessage('Non riesco a rilanciare, riprova.');
+    rolling = false;
+    renderPool();
+  }
+}
+
+const canvas = $('#c');
+const isMine = (hit) => hit && hit.playerId === myId && hit.resting;
+let down = null;
+canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerup', (e) => {
+  const d = down; down = null;
+  if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) >= 6 || performance.now() - d.t >= 500) return; // scroll o pressione lunga
+  const hit = table.pick(e.clientX, e.clientY);
+  if (isMine(hit) && !rolling) rerollDie(hit.rollId, hit.index, hit.position);
+});
+canvas.addEventListener('pointercancel', () => { down = null; });
+if (matchMedia('(hover: hover)').matches) {
+  let pending = null, scheduled = false, hoverKey = null;
+  canvas.addEventListener('pointermove', (e) => {
+    pending = { x: e.clientX, y: e.clientY };
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      const hit = pending && table.pick(pending.x, pending.y);
+      const ok = isMine(hit) && !rolling;
+      const key = ok ? hit.rollId + ':' + hit.index : null;
+      if (key === hoverKey) return;
+      hoverKey = key;
+      table.setHover(ok ? hit.rollId : null, ok ? hit.index : null);
+      canvas.style.cursor = ok ? 'pointer' : '';
+    });
+  });
+  canvas.addEventListener('pointerleave', () => { pending = null; table.setHover(null); canvas.style.cursor = ''; });
 }
 
 const rollMine = () => rollDice(poolList());

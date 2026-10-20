@@ -91,6 +91,11 @@ input[type=text]{width:100%;background:var(--panel-2);border:1px solid var(--lin
 .log .vals{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .chip{font:500 .8rem var(--f-mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:0 6px;font-variant-numeric:tabular-nums}
 .chip i{font-style:normal;color:var(--muted)}
+.chip.rerolled{text-decoration:line-through;color:var(--muted)}
+button.chip{color:inherit;cursor:pointer;line-height:inherit}
+button.chip:hover,button.chip:focus-visible{border-color:var(--brass)}
+.tag-reroll{font:500 .7rem var(--f-mono);color:var(--brass);letter-spacing:.04em}
+.log .upd{width:100%;font:500 .75rem var(--f-mono);color:var(--muted)}
 .check{font-size:.78rem;color:var(--ok)}
 .check.bad{color:var(--bad)}
 .pending{font-size:.85rem;color:var(--muted)}

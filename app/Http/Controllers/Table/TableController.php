@@ -27,6 +27,8 @@ class TableController extends Controller
         $room->touchActivity();
 
         // Ultimi lanci per chi entra a partita iniziata, dal più vecchio al più recente.
+        // Il client barra i dadi rilanciati dal `reroll_of` dei rilanci presenti: se l'originale è tra gli ultimi 30
+        // e il suo rilancio no, il caso è raro e il dado non risulta barrato.
         $history = $room->rolls()->with('participant')->latest('id')->limit(30)->get()
             ->reverse()->values()->map(fn ($roll) => $roll->toPayload());
 

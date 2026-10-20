@@ -91,7 +91,12 @@
                                             <span class="badge me-1" style="background:{{ $roll->participant->color }};width:.8rem;height:.8rem;padding:0;border-radius:50%;vertical-align:-1px"></span>
                                             {{ $roll->participant->nickname }}
                                         </td>
-                                        <td class="font-monospace small">{{ $roll->formula() }}</td>
+                                        <td class="font-monospace small">
+                                            {{ $roll->formula() }}
+                                            @if ($roll->reroll_of_id)
+                                                <span class="badge bg-azure-lt ms-1">rilancio di #{{ $roll->reroll_of_id }}</span>
+                                            @endif
+                                        </td>
                                         <td>
                                             @foreach ($roll->dice as $i => $type)
                                                 <span class="badge bg-secondary-lt text-secondary font-monospace">{{ $type }}: {{ $roll->values[$i] }}</span>

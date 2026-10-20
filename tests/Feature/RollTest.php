@@ -71,7 +71,7 @@ test('il lancio viene trasmesso sul canale pubblico del tavolo', function () {
     Event::assertDispatched(DiceRolled::class, function (DiceRolled $event) use ($room) {
         return $event->broadcastOn()->name === 'table.'.$room->code
             && $event->broadcastWith()['id'] === Roll::first()->id
-            && array_keys($event->broadcastWith()) === ['id', 'player', 'dice', 'values', 'seed', 'total', 'created_at'];
+            && array_keys($event->broadcastWith()) === ['id', 'player', 'dice', 'values', 'seed', 'total', 'created_at', 'reroll_of', 'origin', 'combined_total'];
     });
 });
 

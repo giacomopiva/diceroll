@@ -21,8 +21,22 @@ export function mulberry32(a) {
   return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-export function simulate(list, seed) {
+/** Avvicina il punto al centro lungo la congiungente finché sta dentro la vaschetta con il margine dato. */
+function pullInside(x, z, margin) {
+  if (insideTray(x, z, margin)) return { x, z };
+  let lo = 0, hi = 1; // lo: scala sempre dentro (il centro), hi: fuori
+  for (let i = 0; i < 24; i++) { const mid = (lo + hi) / 2; if (insideTray(x * mid, z * mid, margin)) lo = mid; else hi = mid; }
+  return { x: x * lo, z: z * lo };
+}
+
+/**
+ * Fisica precalcolata di un lancio.
+ * `opts.origin` ({ x, z }, con un solo dado): il dado riparte da quel punto, per il rilancio. Senza origine
+ * il percorso e l'ordine delle chiamate a rng() sono quelli dei lanci normali (c'è un test che lo blocca).
+ */
+export function simulate(list, seed, opts = {}) {
   const rng = mulberry32(seed);
+  const origin = list.length === 1 && opts.origin ? pullInside(opts.origin.x, opts.origin.z, 1.2) : null;
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -55, 0), allowSleep: true });
   world.solver.iterations = 10;
   const mFloor = new CANNON.Material('feltro'), mWall = new CANNON.Material('legno'), mDie = new CANNON.Material('dado');
@@ -41,7 +55,7 @@ export function simulate(list, seed) {
   }
 
   // Partenza da un lato, in colonne verso il centro: dove l'esagono si stringe verso il vertice non ci si spinge.
-  const side = rng() < 0.5 ? -1 : 1;
+  const side = origin ? 1 : (rng() < 0.5 ? -1 : 1);
   const zSpread = 2.3, D = 2 * TRAY.A;
   let step = 0;
   const sounds = [];
@@ -50,11 +64,24 @@ export function simulate(list, seed) {
     const shape = new CANNON.ConvexPolyhedron({ vertices: proto.V.map((v) => new CANNON.Vec3(v.x, v.y, v.z)), faces: proto.faces.map((f) => f.idx.slice()) });
     const b = new CANNON.Body({ mass: 1, shape, material: mDie, linearDamping: 0.1, angularDamping: 0.12, sleepSpeedLimit: 0.25, sleepTimeLimit: 0.35 });
     const layer = Math.floor(i / 12), r = i % 12, col = r % 3, row = Math.floor(r / 3);
-    const z = (list.length <= 3 ? (rng() - 0.5) * D * 0.4 : (row - 1.5) * zSpread) + (rng() - 0.5) * 0.4;
-    b.position.set(side * (TRAY.R * 0.6 - col * 2.3), 2.2 + layer * 2.4 + rng() * 0.6, z);
+    let z = 0;
+    if (origin) {
+      b.position.set(origin.x, 2.4 + rng() * 0.6, origin.z);
+    } else {
+      z = (list.length <= 3 ? (rng() - 0.5) * D * 0.4 : (row - 1.5) * zSpread) + (rng() - 0.5) * 0.4;
+      b.position.set(side * (TRAY.R * 0.6 - col * 2.3), 2.2 + layer * 2.4 + rng() * 0.6, z);
+    }
     const u1 = rng(), u2 = rng(), u3 = rng(), s1 = Math.sqrt(1 - u1), s2 = Math.sqrt(u1);
     b.quaternion.set(s1 * Math.sin(2 * Math.PI * u2), s1 * Math.cos(2 * Math.PI * u2), s2 * Math.sin(2 * Math.PI * u3), s2 * Math.cos(2 * Math.PI * u3));
-    b.velocity.set(-side * (13 + rng() * 9), 1 + rng() * 3, (rng() - 0.5) * 9 - z * 0.5);
+    if (origin) {
+      // Direzione casuale; vicino a una parete punta verso il centro, con uno scarto di ±45°.
+      let a = rng() * 2 * Math.PI;
+      const speed = 6 + rng() * 5, up = 3 + rng() * 3;
+      if (!insideTray(origin.x, origin.z, 3)) a = Math.atan2(-origin.z, -origin.x) + (rng() - 0.5) * (Math.PI / 2);
+      b.velocity.set(Math.cos(a) * speed, up, Math.sin(a) * speed);
+    } else {
+      b.velocity.set(-side * (13 + rng() * 9), 1 + rng() * 3, (rng() - 0.5) * 9 - z * 0.5);
+    }
     b.angularVelocity.set((rng() - 0.5) * 40, (rng() - 0.5) * 40, (rng() - 0.5) * 40);
     b.kind = 'die';
     b.addEventListener('collide', (e) => {
