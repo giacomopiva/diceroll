@@ -13,7 +13,7 @@ export const FINISHES = [
   { name: 'Glitter notte', fam: 'black', hex: '#2a2a36', texture: 'black' },
   { name: 'Glitter oro', fam: 'gold', hex: '#cbb064', texture: 'gold' },
   { name: 'Glitter rosa', fam: 'violet', hex: '#e74085', texture: 'pink' },
-  { name: 'Glitter lime', fam: 'green', hex: '#76bb14', texture: 'lime' },
+  { name: 'Glitter lime', fam: 'green', hex: '#2da527', texture: 'lime' },
 ];
 export const TEXTURE_URL = (name) => `/images/dice/${name}.jpg`;
 export const finishOf = (hex) => FINISHES.find((f) => f.hex === String(hex).toLowerCase()) || null;
