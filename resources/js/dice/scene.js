@@ -2,8 +2,9 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { PAD, PROTOS, cellOf, resultFace } from './geometry.js';
-import { DT, TRAY, mulberry32, plan, simulate } from './physics.js';
+import { DT, TRAY, plan, simulate } from './physics.js';
 import { playHit } from './audio.js';
+import { buildStoneRim } from './stone.js';
 import { TEXTURE_URL, finishOf } from '../presets.js';
 
 // Lato in px di una cella dell'atlante delle facce.
@@ -121,94 +122,145 @@ export function drawAtlas(ctx, proto, hex, C, mode = 'color', img = null) {
   proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal, size, mode === 'bump', img));
 }
 
-/* ---------------- Cornice di legno ---------------- */
-const RIM = 0.75, RIM_H = 0.9, RIM_ROUND = 0.22; // larghezza, altezza e raggio di raccordo della cornice
-const WOOD_W = 2048, WOOD_H = 1024, WOOD_TILE = 6.4; // texture del legno: px e unità di scena per ripetizione
+/* ---------------- Cornice di pietra ---------------- */
+// Materiale della pietra: colore, ruvidezza e microrilievo calcolati nello shader da un rumore 3D sulla
+// posizione nel mondo (niente texture, quindi niente giunture né stiramenti sugli spigoli arrotondati).
+// I colori per vertice di buildStoneRim (tinta del blocco × occlusione) moltiplicano il risultato.
+const STONE_GLSL = `
+varying vec3 vStoneP;
+float sHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float sNoise(vec3 x) {
+  vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(sHash(i), sHash(i + vec3(1, 0, 0)), f.x), mix(sHash(i + vec3(0, 1, 0)), sHash(i + vec3(1, 1, 0)), f.x), f.y),
+             mix(mix(sHash(i + vec3(0, 0, 1)), sHash(i + vec3(1, 0, 1)), f.x), mix(sHash(i + vec3(0, 1, 1)), sHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+float sFbm(vec3 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * sNoise(p); p = p * 2.03 + vec3(1.7, 9.2, 3.1); a *= 0.5; } return s / 0.97; }
+// Microrilievo come una bump map, ma con l'altezza calcolata qui (stessa formula di perturbNormalArb di three).
+vec3 stoneBump(vec3 surfPos, vec3 surfNorm, vec2 dHdxy, float faceDir) {
+  vec3 sx = normalize(dFdx(surfPos)), sy = normalize(dFdy(surfPos));
+  vec3 r1 = cross(sy, surfNorm), r2 = cross(surfNorm, sx);
+  float det = dot(sx, r1) * faceDir;
+  return normalize(abs(det) * surfNorm - sign(det) * (dHdxy.x * r1 + dHdxy.y * r2));
+}
+`;
 
-// Venatura del legno disegnata nel canvas (la fibra corre lungo x). Seed fisso e onde periodiche in x:
-// la texture si ripete senza giunture e il legno è lo stesso per tutti.
-function paintWood(ctx, w, h) {
-  const rnd = mulberry32(7), TAU = Math.PI * 2;
-  const dark = [62, 36, 18], light = [140, 90, 52];
-  // fasce larghe di tono, come gli anelli di crescita visti di taglio
-  const ph = Array.from({ length: 4 }, () => rnd() * TAU);
-  for (let y = 0; y < h; y++) {
-    const t = 0.5 + 0.28 * Math.sin(y * 0.021 + ph[0]) + 0.16 * Math.sin(y * 0.067 + ph[1]) + 0.1 * Math.sin(y * 0.19 + ph[2]);
-    const k = Math.min(1, Math.max(0, t));
-    ctx.fillStyle = `rgb(${dark.map((d, i) => Math.round(d + (light[i] - d) * k)).join(',')})`;
-    ctx.fillRect(0, y, w, 1);
-  }
-  // fibre: linee sottili ondulate su tutta la larghezza
-  for (let i = 0; i < 700; i++) {
-    const y = rnd() * h, amp = 1 + rnd() * 7, m = 1 + Math.floor(rnd() * 5), p0 = rnd() * TAU;
-    ctx.strokeStyle = rnd() < 0.6 ? `rgba(28,13,4,${0.06 + rnd() * 0.2})` : `rgba(190,140,90,${0.05 + rnd() * 0.14})`;
-    ctx.lineWidth = 0.5 + rnd() * 1.8;
-    ctx.beginPath();
-    for (let x = 0; x <= w; x += 32) { const yy = y + Math.sin(x / w * TAU * m + p0) * amp; if (x) ctx.lineTo(x, yy); else ctx.moveTo(x, yy); }
-    ctx.stroke();
-  }
-  // pori: trattini scuri corti lungo la fibra
-  for (let i = 0; i < 5000; i++) {
-    const x = rnd() * (w - 20), y = rnd() * h;
-    ctx.fillStyle = `rgba(25,10,3,${0.12 + rnd() * 0.25})`;
-    ctx.fillRect(x, y, 3 + rnd() * 14, 1);
-  }
+// Porta la posizione nel mondo al fragment shader (vStoneP) e aggiunge le funzioni di rumore.
+function withStoneShader(shader, extraGlsl = '') {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vStoneP;')
+    .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvStoneP = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+  shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\n' + STONE_GLSL + extraGlsl);
 }
 
-// Profilo della sezione (d = distanza dalla parete, h = altezza): fondo piatto, lato interno e esterno
-// verticali, spigoli superiori raccordati ad arco. Percorso chiuso.
-function rimProfile() {
-  const pts = [[0, 0], [RIM, 0]], arc = 6;
-  const corner = (cx, cy, a0, a1) => { for (let i = 0; i <= arc; i++) { const a = a0 + (a1 - a0) * i / arc; pts.push([cx + RIM_ROUND * Math.cos(a), cy + RIM_ROUND * Math.sin(a)]); } };
-  corner(RIM - RIM_ROUND, RIM_H - RIM_ROUND, 0, Math.PI / 2);  // spigolo esterno
-  corner(RIM_ROUND, RIM_H - RIM_ROUND, Math.PI / 2, Math.PI);  // spigolo interno
-  return pts;
-}
-
-/**
- * Cornice esagonale come telaio di sei listelli con giunti a 45°: la fibra del legno segue ogni lato.
- * Ogni anello del profilo è posto sui vertici dell'esagono allargato di d (vertice a R + d/cos 30°).
- * Geometria non indicizzata con normali morbide lungo il profilo e nette tra un lato e l'altro.
- */
-function buildRimGeometry(R) {
-  const prof = rimProfile(), n = prof.length, cos30 = Math.cos(Math.PI / 6);
-  // normali 2D (d, h) dei segmenti del profilo chiuso, verso l'esterno (il percorso è antiorario in (d, h))
-  const segN = prof.map((p, i) => { const q = prof[(i + 1) % n], dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy); return [dy / l, -dx / l]; });
-  const vertN = (i, side) => { // normale del punto i sul segmento `side` (i o i-1): morbida se l'angolo è dolce
-    const a = segN[(i + n - 1) % n], b = segN[i];
-    const d = a[0] * b[0] + a[1] * b[1];
-    if (d > 0.7) { const x = a[0] + b[0], y = a[1] + b[1], l = Math.hypot(x, y); return [x / l, y / l]; }
-    return side === 'prev' ? a : b;
+function stoneMaterial() {
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
+  mat.onBeforeCompile = (shader) => {
+    withStoneShader(shader);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        // pietra grigio-bruna: macchie larghe, venature sottili, grana minuta, qualche chiazza di lichene;
+        // in alto più chiara (polvere, sole), in basso più scura (umidità)
+        float sN1 = sFbm(vStoneP * 0.7);
+        float sN2 = sFbm(vStoneP * 3.2 + 2.0);
+        vec3 sCol = mix(vec3(0.085, 0.08, 0.072), vec3(0.24, 0.225, 0.2), smoothstep(0.25, 0.75, sN1));
+        sCol *= 0.82 + 0.36 * sN2;
+        // crepe sottili e scure, solo in alcune zone
+        float sVein = (1.0 - smoothstep(0.0, 0.012, abs(sFbm(vStoneP * 1.3 + 5.0) - 0.5)))
+          * smoothstep(0.55, 0.7, sNoise(vStoneP * 0.5 + 2.0));
+        sCol = mix(sCol, sCol * 0.5, sVein * 0.55);
+        float sGrain = sNoise(vStoneP * 90.0);
+        sCol *= 0.9 + 0.2 * sGrain;
+        sCol = mix(sCol, vec3(0.04), smoothstep(0.86, 0.95, sNoise(vStoneP * 60.0)) * 0.35);
+        sCol *= mix(0.75, 1.0, smoothstep(0.0, 1.2, vStoneP.y));
+        float sLichen = smoothstep(0.66, 0.76, sFbm(vStoneP * 0.8 + vec3(4.0, 1.0, 9.0))) * smoothstep(0.4, 1.0, vStoneP.y);
+        sCol = mix(sCol, vec3(0.32, 0.31, 0.2), sLichen * 0.35);
+        diffuseColor.rgb *= sCol;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(0.72 + 0.22 * sN2 - 0.1 * sVein + 0.05 * sLichen, 0.0, 1.0);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        // grana fine, solchi e piccoli pori (le cavità scendono, quindi l'altezza cala)
+        float sH = sFbm(vStoneP * 2.4) * 0.5 + sFbm(vStoneP * 11.0) * 0.35 + sNoise(vStoneP * 45.0) * 0.12 + sGrain * 0.05 - sVein * 0.08
+          - smoothstep(0.8, 0.9, sNoise(vStoneP * 16.0 + 3.0)) * 0.3;
+        normal = stoneBump(-vViewPosition, normal, vec2(dFdx(sH), dFdy(sH)) * 1.5, faceDirection);`);
   };
-  const tiles = Math.max(1, Math.round(6 * R / WOOD_TILE));
-  const lens = [0]; for (let i = 1; i <= n; i++) lens.push(lens[i - 1] + Math.hypot(prof[i % n][0] - prof[i - 1][0], prof[i % n][1] - prof[i - 1][1]));
-  const pos = [], nor = [], uv = [], g = new THREE.BufferGeometry();
-  const P = (k, d, h) => { const a = k * Math.PI / 3, r = R + d / cos30; return new THREE.Vector3(r * Math.cos(a), h, r * Math.sin(a)); };
-  for (let s = 0; s < 6; s++) {
-    const am = (s + 0.5) * Math.PI / 3, sx = Math.cos(am), sz = Math.sin(am);
-    const N = (nd, nh) => new THREE.Vector3(nd * sx, nh, nd * sz);
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      const a0 = P(s, prof[i][0], prof[i][1]), a1 = P(s + 1, prof[i][0], prof[i][1]);
-      const b0 = P(s, prof[j][0], prof[j][1]), b1 = P(s + 1, prof[j][0], prof[j][1]);
-      const nI = vertN(i, 'next'), nJ = vertN(j, 'prev');
-      const q = [
-        { p: a0, n: N(...nI), uv: [s / 6 * tiles, lens[i] / lens[n]] }, { p: a1, n: N(...nI), uv: [(s + 1) / 6 * tiles, lens[i] / lens[n]] },
-        { p: b1, n: N(...nJ), uv: [(s + 1) / 6 * tiles, lens[i + 1] / lens[n]] }, { p: b0, n: N(...nJ), uv: [s / 6 * tiles, lens[i + 1] / lens[n]] },
-      ];
-      for (const t of [[0, 1, 2], [0, 2, 3]]) {
-        let v = t.map((k) => q[k]);
-        const geo = new THREE.Vector3().subVectors(v[1].p, v[0].p).cross(new THREE.Vector3().subVectors(v[2].p, v[0].p));
-        if (geo.dot(v[0].n.clone().add(v[1].n).add(v[2].n)) < 0) v = [v[0], v[2], v[1]];
-        for (const w of v) { pos.push(w.p.x, w.p.y, w.p.z); nor.push(w.n.x, w.n.y, w.n.z); uv.push(w.uv[0], w.uv[1]); }
-      }
-    }
+  return mat;
+}
+
+/* ---------------- Lastricato ---------------- */
+// Pavimento della vaschetta: lastre di pietra irregolari (celle di Voronoi con i bordi deformati dal rumore),
+// fughe scure, spigoli consumati, tono e leggera inclinazione diversi per lastra, più scuro vicino alla cornice.
+// Tutto nello shader sul piano esagonale: la superficie resta piatta come il pavimento fisico.
+const PAVING_GLSL = `
+const float TRAY_A = ${TRAY.A.toFixed(4)};
+vec2 pHash2(vec2 p) { p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return fract(sin(p) * 43758.5453); }
+// Distanza dal bordo della cella più vicina (metodo a due passate di Inigo Quilez) e id della cella.
+vec3 pVoronoi(vec2 x) {
+  vec2 n = floor(x), f = fract(x), mg = vec2(0.0), mr = vec2(0.0);
+  float md = 8.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 g = vec2(float(i), float(j)), r = g + 0.15 + 0.7 * pHash2(n + g) - f;
+    float d = dot(r, r);
+    if (d < md) { md = d; mr = r; mg = g; }
   }
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.computeBoundingSphere();
-  return g;
+  md = 8.0;
+  for (int j = -2; j <= 2; j++) for (int i = -2; i <= 2; i++) {
+    vec2 g = mg + vec2(float(i), float(j)), r = g + 0.15 + 0.7 * pHash2(n + g) - f;
+    if (dot(mr - r, mr - r) > 1e-5) md = min(md, dot(0.5 * (mr + r), normalize(r - mr)));
+  }
+  return vec3(md, n + mg);
+}
+`;
+
+function pavingMaterial() {
+  const mat = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0 });
+  mat.onBeforeCompile = (shader) => {
+    withStoneShader(shader, PAVING_GLSL);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        // lastre di circa 1,9 unità; bordi non rettilinei come la pietra spaccata
+        vec2 pq = vStoneP.xz / 1.9;
+        pq += (vec2(sFbm(vec3(pq * 0.9, 1.3)), sFbm(vec3(pq * 0.9, 7.1))) - 0.5) * 0.38;
+        vec3 pv = pVoronoi(pq);
+        float pSeed = sHash(vec3(pv.yz, 4.0)), pSeed2 = sHash(vec3(pv.yz, 9.0));
+        // fuga di larghezza variabile e spigoli scheggiati in modo irregolare
+        float pW = 0.016 + 0.03 * sNoise(vec3(vStoneP.xz * 2.2, 2.0));
+        float pChip = 0.06 + 0.12 * sFbm(vec3(vStoneP.xz * 3.5, 6.0));
+        float pJoint = 1.0 - smoothstep(pW, pW + 0.018, pv.x);
+        float pBevel = smoothstep(pW, pW + pChip, pv.x);
+        // tono della lastra: dal grigio medio al grigio-nero; alcune più fredde, come ardesia o basalto
+        vec3 pBase = mix(vec3(0.05, 0.05, 0.05), vec3(0.14, 0.138, 0.134), pSeed);
+        pBase = mix(pBase, vec3(0.04, 0.045, 0.052), step(0.68, pSeed2) * 0.85);
+        // macchie a tre scale, grana fine e granelli chiari
+        float pN = sFbm(vec3(vStoneP.xz * 1.3, pSeed * 10.0));
+        float pM = sFbm(vec3(vStoneP.xz * 5.5, pSeed2 * 7.0));
+        float pG = sNoise(vec3(vStoneP.xz * 80.0, 1.0));
+        vec3 pCol = pBase * (0.7 + 0.6 * pN) * (0.8 + 0.4 * pM) * (0.86 + 0.28 * pG);
+        pCol = mix(pCol, pCol * 2.1, smoothstep(0.9, 0.97, sNoise(vec3(vStoneP.xz * 52.0, 3.0))) * 0.35);
+        // macchie d'acqua e d'usura: alcune zone più scure e più lisce
+        float pStain = smoothstep(0.55, 0.75, sFbm(vec3(vStoneP.xz * 0.8, 12.0)));
+        pCol *= 1.0 - 0.25 * pStain;
+        pCol *= mix(0.7, 1.0, pBevel);                            // sporco negli spigoli scheggiati
+        // fuga: sabbia e graniglia grigio-bruna, con qualche sassolino più chiaro
+        float pGrit = sNoise(vec3(vStoneP.xz * 60.0, 8.0)) * 0.6 + sNoise(vec3(vStoneP.xz * 14.0, 4.0)) * 0.4;
+        vec3 pMortar = mix(vec3(0.026, 0.025, 0.023), vec3(0.052, 0.049, 0.044), smoothstep(0.35, 0.85, pGrit));
+        pCol = mix(pCol, pMortar, pJoint);
+        // occlusione vicino alla cornice (distanza dalla parete esagonale più vicina)
+        vec2 pa = abs(vStoneP.xz);
+        float pWall = TRAY_A - max(pa.y, 0.8660254 * pa.x + 0.5 * pa.y);
+        pCol *= mix(0.4, 1.0, smoothstep(0.0, 1.5, pWall));
+        diffuseColor.rgb = pCol;`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        // lastre un poco lucidate dall'uso, fughe opache
+        roughnessFactor = mix(0.62 + 0.28 * pM - 0.12 * pStain, 0.98, pJoint);`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        float pTilt = dot(pq - pv.yz - 0.5, vec2(pSeed - 0.5, pSeed2 - 0.5)) * 0.08;
+        float pH = pBevel * 0.45 + pTilt + sFbm(vec3(vStoneP.xz * 4.0, pSeed * 5.0)) * 0.09
+          + sFbm(vec3(vStoneP.xz * 14.0, 2.0)) * 0.06 + pG * 0.02
+          - smoothstep(0.85, 0.93, sNoise(vec3(vStoneP.xz * 20.0, 5.0))) * 0.04
+          + pJoint * pGrit * 0.04;                                // graniglia in rilievo nella fuga
+        normal = stoneBump(-vViewPosition, normal, vec2(dFdx(pH), dFdy(pH)), faceDirection);`);
+  };
+  return mat;
 }
 
 /**
@@ -250,56 +302,31 @@ export function createScene(canvas, stage, opts = {}) {
     if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
     return t;
   }
-  const feltMat = new THREE.MeshStandardMaterial({
-    roughness: 1, metalness: 0,
-    map: canvasTexture(1024, 1024, (ctx, w, h) => {
-      ctx.fillStyle = '#1f4b55'; ctx.fillRect(0, 0, w, h);
-      for (let i = 0; i < 26000; i++) {
-        ctx.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.07)';
-        ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
-      }
-      const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.18, w / 2, h / 2, w * 0.5);
-      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    }),
-  });
-  // Legno verniciato: stessa venatura come colore e come rilievo (dato, non colore: niente sRGB).
-  const woodCv = document.createElement('canvas'); woodCv.width = WOOD_W; woodCv.height = WOOD_H;
-  paintWood(woodCv.getContext('2d'), WOOD_W, WOOD_H);
-  const woodTex = (srgb) => {
-    const t = new THREE.CanvasTexture(woodCv);
-    t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-    t.wrapS = THREE.RepeatWrapping; t.anisotropy = ANISO;
-    return t;
-  };
-  const woodMat = new THREE.MeshPhysicalMaterial({
-    map: woodTex(true), bumpMap: woodTex(false), bumpScale: 0.6,
-    roughness: 0.5, metalness: 0, clearcoat: 0.45, clearcoatRoughness: 0.28,
-  });
   const tableMat = new THREE.MeshStandardMaterial({ color: 0x17120e, roughness: 0.85 });
 
   // Vaschetta esagonale di dimensioni fisse (TRAY): si adatta solo la camera.
-  // Il feltro è un esagono con i vertici sull'asse x, come le pareti fisiche; la cornice è un telaio di
-  // legno a sei listelli (buildRimGeometry) con la parete interna alla distanza delle pareti fisiche.
+  // Il lastricato è un esagono piatto con i vertici sull'asse x, come le pareti fisiche; intorno, blocchi di
+  // pietra irregolari (stone.js) con il lato interno sul piano delle pareti fisiche.
+  const rimGeo = buildStoneRim(), rimBox = rimGeo.boundingBox;
   (function buildTray() {
     const g = new THREE.Group(), { R } = TRAY;
-    const felt = new THREE.Mesh(new THREE.CircleGeometry(R, 6), feltMat);
-    felt.rotation.x = -Math.PI / 2; felt.receiveShadow = true; g.add(felt);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(R, 6), pavingMaterial());
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; g.add(floor);
 
-    const rim = new THREE.Mesh(buildRimGeometry(R), woodMat);
+    const rim = new THREE.Mesh(rimGeo, stoneMaterial());
     rim.castShadow = true; rim.receiveShadow = true; g.add(rim);
 
     const table = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), tableMat);
     table.rotation.x = -Math.PI / 2; table.position.y = -0.02; table.receiveShadow = true; g.add(table);
     scene.add(g);
-    const s = R + RIM + 2, cam = sun.shadow.camera;
+    const s = Math.max(rimBox.max.x, -rimBox.min.x, rimBox.max.z, -rimBox.min.z) + 2, cam = sun.shadow.camera;
     cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 1; cam.far = 70; cam.updateProjectionMatrix();
   })();
 
   function fitCamera() {
     const tilt = 0.42; // inclinazione dalla verticale, in radianti
     const fv = THREE.MathUtils.degToRad(camera.fov / 2), fh = Math.atan(Math.tan(fv) * camera.aspect);
-    const hw = TRAY.R + RIM + 0.3, hd = TRAY.A + RIM + 0.3;
+    const hw = Math.max(rimBox.max.x, -rimBox.min.x) + 0.3, hd = Math.max(rimBox.max.z, -rimBox.min.z) + 0.3;
     const dist = Math.max(hd / Math.tan(fv), hw / Math.tan(fh)) * 1.05 + 1.5;
     camera.position.set(0, Math.cos(tilt) * dist, Math.sin(tilt) * dist);
     camera.lookAt(0, 0, 0.35);

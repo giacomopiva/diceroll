@@ -17,6 +17,10 @@ export function insideTray(x, z, margin = 0) {
   return TRAY_SIDES.every((a) => x * Math.cos(a) + z * Math.sin(a) <= TRAY.A - margin + 1e-6);
 }
 
+// Pavimento della vaschetta (lastricato di pietra): attrito e rimbalzo dei dadi.
+// Cambiarli cambia tutte le traiettorie: va aggiornato il test di regressione della fisica.
+export const FLOOR = { friction: 0.42, restitution: 0.5 };
+
 export function mulberry32(a) {
   return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
@@ -39,8 +43,8 @@ export function simulate(list, seed, opts = {}) {
   const origin = list.length === 1 && opts.origin ? pullInside(opts.origin.x, opts.origin.z, 1.2) : null;
   const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -55, 0), allowSleep: true });
   world.solver.iterations = 10;
-  const mFloor = new CANNON.Material('feltro'), mWall = new CANNON.Material('legno'), mDie = new CANNON.Material('dado');
-  world.addContactMaterial(new CANNON.ContactMaterial(mFloor, mDie, { friction: 0.32, restitution: 0.32 }));
+  const mFloor = new CANNON.Material('pietra'), mWall = new CANNON.Material('legno'), mDie = new CANNON.Material('dado');
+  world.addContactMaterial(new CANNON.ContactMaterial(mFloor, mDie, { friction: FLOOR.friction, restitution: FLOOR.restitution }));
   world.addContactMaterial(new CANNON.ContactMaterial(mWall, mDie, { friction: 0.08, restitution: 0.55 }));
   world.addContactMaterial(new CANNON.ContactMaterial(mDie, mDie, { friction: 0.12, restitution: 0.38 }));
 

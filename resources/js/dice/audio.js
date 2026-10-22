@@ -27,7 +27,7 @@ export function playHit(v, kind) {
   let f = 600, q = 1.2, peak = 0.5, dec = 0.11;
   if (kind === 'die') { f = 2800 + Math.random() * 1800; q = 5; peak = 0.45; dec = 0.06; }
   else if (kind === 'wall') { f = 1100 + Math.random() * 300; q = 3; peak = 0.6; dec = 0.09; }
-  else { f = 520 + Math.random() * 260; peak = 0.7; }
+  else { f = 1500 + Math.random() * 700; q = 2.6; peak = 0.6; dec = 0.075; } // pavimento di pietra: colpo secco
   bp.frequency.value = f; bp.Q.value = q;
   const amp = Math.max(0.0002, Math.min(1, v / 20) * peak);
   g.gain.setValueAtTime(0.0001, t);

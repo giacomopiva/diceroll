@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { BEVEL, PROTOS, SIDES, TYPES, resultFace, symmetryQuat } from '../../resources/js/dice/geometry.js';
-import { MAX_STEPS, TRAY, insideTray, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
+import { FLOOR, MAX_STEPS, TRAY, insideTray, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
 import { selfTest } from '../../resources/js/dice/selftest.js';
 
 const frameOf = (sim, i, step) => {
@@ -208,15 +208,17 @@ describe('simulazione e orientamento', () => {
     }
   }, 60000);
 
-  // Valori calcolati prima di introdurre `opts.origin`: senza origine la fisica deve restare identica,
-  // quindi stesse chiamate a rng() nello stesso ordine.
+  // Valori calcolati con il pavimento di pietra (FLOOR in physics.js: attrito 0.42, rimbalzo 0.5).
+  // Senza origine la fisica deve restare identica: stesse chiamate a rng() nello stesso ordine e stessi
+  // materiali. Se si cambiano di proposito materiali o partenza, si ricalcolano questi valori.
   it('regressione della fisica: senza origine le posizioni finali non cambiano', () => {
+    expect(FLOOR).toEqual({ friction: 0.42, restitution: 0.5 });
     const cases = [
-      { list: ['d20'], seed: 1, steps: 156, pos: [[-2.2898, 1.0912]] },
-      { list: ['d6', 'd8', 'd12'], seed: 2024, steps: 110, pos: [[-5.7376, 4.1274], [-2.7731, -0.3327], [-7.8766, 0.2138]] },
+      { list: ['d20'], seed: 1, steps: 126, pos: [[-2.356, 1.0759]] },
+      { list: ['d6', 'd8', 'd12'], seed: 2024, steps: 120, pos: [[-5.6565, 4.3675], [-1.5374, 0.3666], [-7.1248, 0.2949]] },
       {
-        list: ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd20', 'd10', 'd8', 'd6'], seed: 77, steps: 234,
-        pos: [[-0.7615, -4.3702], [3.8568, -2.6324], [5.7894, -3.0309], [-0.4252, -3.061], [2.8094, -6.9202], [7.0329, -0.1552], [2.5591, 3.4384], [3.1706, -0.084], [5.8519, 1.0566], [0.6223, 2.421]],
+        list: ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd20', 'd10', 'd8', 'd6'], seed: 77, steps: 154,
+        pos: [[-0.7534, -4.7599], [4.3399, -3.0634], [5.9883, -2.9546], [-0.2586, -3.2641], [1.9129, -3.0806], [6.6293, -1.3318], [0.0452, 0.6613], [3.6128, -0.1258], [5.0054, 1.3097], [1.4525, 1.7258]],
       },
     ];
     for (const c of cases) {
