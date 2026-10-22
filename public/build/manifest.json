@@ -8,7 +8,7 @@
     "isEntry": true
   },
   "resources/css/table.css": {
-    "file": "assets/table-DQq_MfK4.css",
+    "file": "assets/table-iis_CV2l.css",
     "src": "resources/css/table.css",
     "isEntry": true
   },
@@ -26,7 +26,7 @@
     "isEntry": true
   },
   "resources/js/table.js": {
-    "file": "assets/table-C4StGpy5.js",
+    "file": "assets/table-CbeNlzNz.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [

@@ -93,11 +93,9 @@ function addLogEntry(roll) {
   logEntries.set(roll.id, li);
   return li;
 }
-// ok === null: lancio dello storico, mai animato qui, quindi niente verifica.
-function fillLogEntry(li, roll, ok) {
+function fillLogEntry(li, roll) {
   li.querySelector('.sum').textContent = roll.total;
   li._roll = roll;
-  li._check = ok === null ? '' : `<span class="check ${ok ? '' : 'bad'}">${ok ? '✓ facce = server' : '✗ faccia diversa dal server'}</span>`;
   renderVals(li);
 }
 // Chip dei dadi: barrati se già rilanciati; bottoni (rilancio da tastiera) per i miei dadi ancora sul tavolo.
@@ -114,7 +112,7 @@ function renderVals(li) {
     return `<span class="chip">${inner}</span>`;
   }).join('');
   const upd = roll.combined_total != null ? `<span class="upd">totale aggiornato: ${roll.combined_total}</span>` : '';
-  li.querySelector('.vals').innerHTML = chips + li._check + upd;
+  li.querySelector('.vals').innerHTML = chips + upd;
 }
 // Aggiorna i chip delle voci già concluse: chiamata a ogni nuovo lancio e a fine animazione.
 function refreshRerollable() {
@@ -156,8 +154,8 @@ function startRoll(roll) {
   table.play({
     color: roll.player.color, list: roll.dice, values: roll.values, seed: roll.seed,
     id: roll.id, playerId: roll.player.id, rerollOf: roll.reroll_of, origin: roll.origin,
-    onDone(seen) {
-      fillLogEntry(entry, roll, seen.every((v, i) => v === roll.values[i]));
+    onDone() {
+      fillLogEntry(entry, roll);
       refreshRerollable();
       showToast(roll);
       // Il pulsante si riabilita quando si fermano i dadi di chi ha lanciato, non quelli degli altri.
@@ -172,7 +170,7 @@ const history = JSON.parse($('#history').textContent);
 for (const roll of history) if (roll.reroll_of) rerolled.add(roll.reroll_of.id + ':' + roll.reroll_of.index);
 for (const roll of history) {
   handled.add(roll.id);
-  fillLogEntry(addLogEntry(roll), roll, null);
+  fillLogEntry(addLogEntry(roll), roll);
 }
 
 /* ---------------- Presenza: chi è al tavolo ---------------- */

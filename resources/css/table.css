@@ -98,8 +98,6 @@ button.chip{color:inherit;cursor:pointer;line-height:inherit}
 button.chip:hover,button.chip:focus-visible{border-color:var(--brass)}
 .tag-reroll{font:500 .7rem var(--f-mono);color:var(--brass);letter-spacing:.04em}
 .log .upd{width:100%;font:500 .75rem var(--f-mono);color:var(--muted)}
-.check{font-size:.78rem;color:var(--ok)}
-.check.bad{color:var(--bad)}
 .pending{font-size:.85rem;color:var(--muted)}
 .empty{color:var(--muted);font-size:.9rem}
 
