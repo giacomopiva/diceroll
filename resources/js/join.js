@@ -1,10 +1,11 @@
 // Form di ingresso al tavolo: scelta del colore e preriempimento da quanto salvato nel browser.
-import { FINISHES, PRESETS, TEXTURE_URL } from './presets.js';
+import { FAMILIES, FINISHES, PRESETS, TEXTURE_URL } from './presets.js';
 
 const form = document.getElementById('joinForm');
 const nick = document.getElementById('nick');
 const colorInput = document.getElementById('color');
 const box = document.getElementById('swatches');
+box.classList.add('sw-grid');
 
 let saved = null;
 try { saved = JSON.parse(localStorage.getItem('tavolo-dadi') || 'null'); } catch (e) {}
@@ -13,6 +14,7 @@ if (!nick.value && saved && saved.name) nick.value = saved.name;
 // Colori già usati da chi è al tavolo: non si offrono (il server li rifiuta comunque).
 let taken = [];
 try { taken = JSON.parse(box.dataset.taken || '[]'); } catch (e) {}
+const TAIL = ['Osso', 'Ghiaccio'];
 const ALL = [...PRESETS, ...FINISHES];
 const free = ALL.filter((p) => !taken.includes(p.hex));
 if (!colorInput.value) colorInput.value = (saved && saved.color) || PRESETS[0].hex;
@@ -28,8 +30,16 @@ function render() {
     b.setAttribute('aria-pressed', String(p.hex === colorInput.value));
     b.addEventListener('click', () => { colorInput.value = p.hex; render(); });
     box.appendChild(b);
+    return b;
   };
-  free.filter((p) => !p.texture).forEach(addSwatch);
+  // Due righe: colori pieni sopra, glitter sotto, uno sotto l'altro per famiglia; Osso e Ghiaccio in fondo alla prima.
+  // Le celle hanno posizione fissa, così chi occupa un colore lascia un buco senza spostare gli altri.
+  const place = (p, row, col) => { const b = addSwatch(p); b.style.gridArea = `${row} / ${col}`; };
+  for (const p of free) {
+    const fi = FAMILIES.indexOf(p.fam), tail = TAIL.indexOf(p.name);
+    if (tail >= 0) place(p, 1, FAMILIES.length + 1 + tail);
+    else place(p, p.texture ? 2 : 1, fi + 1);
+  }
   const custom = document.createElement('label');
   custom.className = 'custom'; custom.title = 'Colore libero';
   const isCustom = !ALL.some((p) => p.hex === colorInput.value);
@@ -38,14 +48,8 @@ function render() {
   const inp = custom.querySelector('input');
   inp.value = colorInput.value;
   inp.addEventListener('change', () => { if (!taken.includes(inp.value.toLowerCase())) colorInput.value = inp.value; render(); });
+  custom.style.gridArea = `1 / ${FAMILIES.length + TAIL.length + 1}`;
   box.appendChild(custom);
-  // Seconda linea: le finiture glitter.
-  const glitter = free.filter((p) => p.texture);
-  if (glitter.length) {
-    const br = document.createElement('span'); br.style.flexBasis = '100%'; br.style.height = '0';
-    box.appendChild(br);
-    glitter.forEach(addSwatch);
-  }
 }
 render();
 

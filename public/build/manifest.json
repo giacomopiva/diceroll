@@ -2,8 +2,8 @@
   "_echo-B1nH64_W.js": {
     "file": "assets/echo-B1nH64_W.js"
   },
-  "_presets-DP3rrRx6.js": {
-    "file": "assets/presets-DP3rrRx6.js"
+  "_presets-DUVTw087.js": {
+    "file": "assets/presets-DUVTw087.js"
   },
   "resources/css/app.css": {
     "file": "assets/app-CsdbagXp.css",
@@ -11,7 +11,7 @@
     "isEntry": true
   },
   "resources/css/table.css": {
-    "file": "assets/table-iis_CV2l.css",
+    "file": "assets/table-DVKGDSmA.css",
     "src": "resources/css/table.css",
     "isEntry": true
   },
@@ -24,20 +24,20 @@
     ]
   },
   "resources/js/join.js": {
-    "file": "assets/join-DTeITagY.js",
+    "file": "assets/join-Cb3berNV.js",
     "src": "resources/js/join.js",
     "isEntry": true,
     "imports": [
-      "_presets-DP3rrRx6.js"
+      "_presets-DUVTw087.js"
     ]
   },
   "resources/js/table.js": {
-    "file": "assets/table-D_lvYgYb.js",
+    "file": "assets/table-BhABZT7C.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [
       "_echo-B1nH64_W.js",
-      "_presets-DP3rrRx6.js"
+      "_presets-DUVTw087.js"
     ]
   }
 }
