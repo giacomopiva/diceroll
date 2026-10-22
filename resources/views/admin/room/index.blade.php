@@ -71,7 +71,8 @@
             @endif
         </div>
         <p class="text-secondary small mt-3">
-            I tavoli scadono dopo {{ config('tavolo.expire_after_hours') }} ore senza attività e vengono cancellati,
+            @inject('settings', 'App\Services\SettingsService')
+            I tavoli scadono dopo {{ $settings->expireLabel() }} senza attività e vengono cancellati,
             con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.
         </p>
     </div>

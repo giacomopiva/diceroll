@@ -19,6 +19,8 @@ const ICONS = {
   d20: '<polygon points="12,2 20.7,7 20.7,17 12,22 3.3,17 3.3,7"/><polygon points="12,6.5 17,15 7,15"/>',
 };
 const MAX_DICE = 40;
+// Lanci tenuti nel registro: come lo storico mandato dal server (impostazioni admin, 10–100).
+const HISTORY_LIMIT = Number(document.body.dataset.historyLimit) || 20;
 const myId = Number(document.body.dataset.playerId);
 // Da quando premo Lancia (o rilancio un dado) a quando i miei dadi si fermano: il pulsante resta disattivato.
 let rolling = false;
@@ -82,7 +84,7 @@ function addLogEntry(roll) {
     <span class="sum">…</span>
     <div class="vals"><span class="pending">in rotolamento</span></div>`;
   log.prepend(li);
-  while (log.children.length > 30) { const last = log.lastChild; logEntries.forEach((el, id) => { if (el === last) logEntries.delete(id); }); last.remove(); }
+  while (log.children.length > HISTORY_LIMIT) { const last = log.lastChild; logEntries.forEach((el, id) => { if (el === last) logEntries.delete(id); }); last.remove(); }
   logEntries.set(roll.id, li);
   return li;
 }

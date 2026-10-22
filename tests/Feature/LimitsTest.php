@@ -12,6 +12,13 @@ use Spatie\Permission\Models\Role;
 
 uses(RefreshDatabase::class);
 
+/** Il form delle impostazioni completo, con i default, e le modifiche indicate. */
+function settingsForm(array $changes = []): array
+{
+    return array_merge(['expire_after_hours' => 24, 'max_rooms' => 4, 'max_participants' => 6,
+        'rooms_limit_message' => '', 'room_full_message' => '', 'history_limit' => 20], $changes);
+}
+
 function limitsAdmin($test): User
 {
     Role::findOrCreate('admin', 'web');
@@ -90,25 +97,33 @@ test('l\'admin salva le impostazioni e il limite cambia', function () {
 
     $this->get('/admin/settings')->assertOk()->assertSee('value="4"', false)->assertSee('value="6"', false);
 
-    $this->put('/admin/settings', ['max_rooms' => 2, 'max_participants' => 3, 'rooms_limit_message' => 'Pieno!'])
+    $this->put('/admin/settings', settingsForm(['max_rooms' => 2, 'max_participants' => 3, 'rooms_limit_message' => 'Pieno!']))
         ->assertRedirect('/admin/settings');
 
     $s = app(SettingsService::class);
     expect($s->maxRooms())->toBe(2)->and($s->maxParticipants())->toBe(3)->and($s->roomsLimitMessage())->toBe('Pieno!');
 
-    $this->put('/admin/settings', ['max_rooms' => 2, 'max_participants' => 3, 'rooms_limit_message' => '']);
+    $this->put('/admin/settings', settingsForm(['max_rooms' => 2, 'max_participants' => 3, 'rooms_limit_message' => '']));
     expect(app(SettingsService::class)->roomsLimitMessage())->toBe(config('tavolo.rooms_limit_message'));
 });
 
 test('le impostazioni sono validate e riservate agli admin', function (array $data) {
     limitsAdmin($this);
 
-    $this->put('/admin/settings', $data)->assertSessionHasErrors();
+    $this->put('/admin/settings', settingsForm($data))->assertSessionHasErrors();
     expect(Setting::count())->toBe(0);
 })->with([
-    'tavoli zero' => [['max_rooms' => 0, 'max_participants' => 6]],
-    'partecipanti non numerici' => [['max_rooms' => 4, 'max_participants' => 'x']],
-    'messaggio troppo lungo' => [['max_rooms' => 4, 'max_participants' => 6, 'rooms_limit_message' => str_repeat('a', 501)]],
+    'tavoli negativi' => [['max_rooms' => -1]],
+    'partecipanti negativi' => [['max_participants' => -1]],
+    'partecipanti non numerici' => [['max_participants' => 'x']],
+    'messaggio troppo lungo' => [['rooms_limit_message' => str_repeat('a', 501)]],
+    'messaggio a tavolo pieno troppo lungo' => [['room_full_message' => str_repeat('a', 501)]],
+    'scadenza a zero' => [['expire_after_hours' => 0]],
+    'scadenza oltre 24 ore' => [['expire_after_hours' => 25]],
+    'scadenza non numerica' => [['expire_after_hours' => 'abc']],
+    'storico sotto 10' => [['history_limit' => 9]],
+    'storico oltre 100' => [['history_limit' => 101]],
+    'scadenza mancante' => [['expire_after_hours' => null]],
 ]);
 
 test('chi non è admin non accede alle impostazioni', function () {
@@ -123,10 +138,13 @@ test('il seeder inserisce i valori iniziali senza sovrascrivere quelli dell\'adm
     $this->seed(SettingsSeeder::class);
     $this->seed(SettingsSeeder::class);
 
-    expect(Setting::count())->toBe(3)
+    expect(Setting::count())->toBe(6)
         ->and(Setting::find('max_rooms')->value)->toBe('9')
         ->and(Setting::find('max_participants')->value)->toBe('6')
-        ->and(Setting::find('rooms_limit_message')->value)->toBe(config('tavolo.rooms_limit_message'));
+        ->and(Setting::find('rooms_limit_message')->value)->toBe(config('tavolo.rooms_limit_message'))
+        ->and(Setting::find('room_full_message')->value)->toBe(config('tavolo.room_full_message'))
+        ->and(Setting::find('expire_after_hours')->value)->toBe('24')
+        ->and(Setting::find('history_limit')->value)->toBe('20');
 });
 
 test('l\'admin vede i contatori del tavolo e lo elimina con partecipanti e lanci', function () {

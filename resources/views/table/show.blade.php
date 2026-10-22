@@ -6,7 +6,8 @@
 @endpush
 
 @section('body')
-<body data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-reroll-url="{{ route('table.rolls.reroll', [$room, '__ROLL__']) }}" data-heartbeat-url="{{ route('table.heartbeat', $room) }}" data-leave-url="{{ route('table.leave', $room) }}" data-player-id="{{ $participant->id }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
+@inject('settings', 'App\Services\SettingsService')
+<body data-history-limit="{{ $historyLimit }}" data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-reroll-url="{{ route('table.rolls.reroll', [$room, '__ROLL__']) }}" data-heartbeat-url="{{ route('table.heartbeat', $room) }}" data-leave-url="{{ route('table.leave', $room) }}" data-player-id="{{ $participant->id }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
 <div class="app">
   <header class="bar">
     <div class="brand">Tavolo dei Dadi <small>tavolo {{ $room->code }}</small></div>
@@ -50,7 +51,7 @@
         @endif
         <button class="btn" id="soundBtn" type="button" aria-pressed="true">Suono: sì</button>
       </div>
-      <p class="note">I tavoli scadono dopo {{ config('tavolo.expire_after_hours') }} ore senza attività e vengono cancellati, con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.</p>
+      <p class="note">I tavoli scadono dopo {{ $settings->expireLabel() }} senza attività e vengono cancellati, con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.</p>
     </section>
 
     <section>

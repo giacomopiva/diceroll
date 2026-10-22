@@ -7,13 +7,14 @@ use App\Http\Requests\JoinRoomRequest;
 use App\Models\Room;
 use App\Services\PresenceService;
 use App\Services\RoomService;
+use App\Services\SettingsService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 class TableController extends Controller
 {
-    public function __construct(private RoomService $rooms, private PresenceService $presence) {}
+    public function __construct(private RoomService $rooms, private PresenceService $presence, private SettingsService $settings) {}
 
     public function show(Request $request, Room $room): View
     {
@@ -27,12 +28,13 @@ class TableController extends Controller
         $room->touchActivity();
 
         // Ultimi lanci per chi entra a partita iniziata, dal più vecchio al più recente.
-        // Il client barra i dadi rilanciati dal `reroll_of` dei rilanci presenti: se l'originale è tra gli ultimi 30
-        // e il suo rilancio no, il caso è raro e il dado non risulta barrato.
-        $history = $room->rolls()->with('participant')->latest('id')->limit(30)->get()
+        // Quanti: history_limit delle impostazioni. Il client barra i dadi rilanciati dal `reroll_of` dei rilanci
+        // presenti: se l'originale è nello storico e il suo rilancio no, il caso è raro e il dado non risulta barrato.
+        $history = $room->rolls()->with('participant')->latest('id')->limit($this->settings->historyLimit())->get()
             ->reverse()->values()->map(fn ($roll) => $roll->toPayload());
 
         return view('table.show', ['room' => $room, 'participant' => $participant, 'history' => $history,
+            'historyLimit' => $this->settings->historyLimit(),
             'players' => $this->presence->online($room)->map->toPayload()]);
     }
 

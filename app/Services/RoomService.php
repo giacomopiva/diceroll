@@ -13,16 +13,17 @@ class RoomService
 {
     public function __construct(private SettingsService $settings) {}
 
-    /** Si può aprire un altro tavolo? Contano solo quelli non scaduti. */
+    /** Si può aprire un altro tavolo? Contano solo quelli non scaduti; senza limite (0) sempre. */
     public function canCreateRoom(): bool
     {
-        return Room::active()->count() < $this->settings->maxRooms();
+        return ! $this->settings->hasRoomsLimit() || Room::active()->count() < $this->settings->maxRooms();
     }
 
-    /** Il tavolo ha già il massimo di partecipanti online? */
+    /** Il tavolo ha già il massimo di partecipanti online? Senza limite (0) mai. */
     public function isFull(Room $room): bool
     {
-        return $room->participants()->online()->count() >= $this->settings->maxParticipants();
+        return $this->settings->hasParticipantsLimit()
+            && $room->participants()->online()->count() >= $this->settings->maxParticipants();
     }
 
     public function createRoom(): Room
@@ -94,7 +95,7 @@ class RoomService
 
     public function fullMessage(): string
     {
-        return 'Il tavolo è al completo ('.$this->settings->maxParticipants().' giocatori). Riprova più tardi.';
+        return $this->settings->roomFullMessage();
     }
 
     /** Il browser smette di essere un partecipante: per tornare serve rifare il join. */

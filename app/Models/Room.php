@@ -2,12 +2,16 @@
 
 namespace App\Models;
 
+use App\Services\SettingsService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property Carbon|null $last_activity_at
+ */
 class Room extends Model
 {
     use HasFactory;
@@ -38,7 +42,7 @@ class Room extends Model
     /** Istante prima del quale l'ultima attività rende scaduto un tavolo. */
     public static function expiryCutoff(): Carbon
     {
-        return now()->subHours(config('tavolo.expire_after_hours'));
+        return now()->subHours(app(SettingsService::class)->expireHours());
     }
 
     /**

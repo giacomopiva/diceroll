@@ -3,15 +3,16 @@
 namespace Database\Seeders;
 
 use App\Models\Setting;
+use App\Services\SettingsService;
 use Illuminate\Database\Seeder;
 
 class SettingsSeeder extends Seeder
 {
-    /** Valori iniziali dei limiti (da config/tavolo.php). Non tocca quelli già salvati dall'admin. */
-    public function run(): void
+    /** Valori iniziali di tutti i parametri (da config/tavolo.php, nel range valido). Non tocca quelli già salvati dall'admin. */
+    public function run(SettingsService $settings): void
     {
-        foreach (['max_rooms', 'max_participants', 'rooms_limit_message'] as $key) {
-            Setting::firstOrCreate(['key' => $key], ['value' => (string) config('tavolo.'.$key)]);
+        foreach (SettingsService::KEYS as $key) {
+            Setting::firstOrCreate(['key' => $key], ['value' => $settings->defaultFor($key)]);
         }
     }
 }

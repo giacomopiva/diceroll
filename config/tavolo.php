@@ -18,10 +18,15 @@ return [
     'expire_after_hours' => (int) env('TAVOLO_EXPIRE_HOURS', 24),
     'retention_days' => (int) env('TAVOLO_RETENTION_DAYS', 30),
 
-    // Limiti di default, modificabili da admin (Impostazioni): tavoli aperti insieme e partecipanti online per tavolo.
+    // Default dei parametri del pannello Impostazioni: il valore effettivo si legge sempre da SettingsService
+    // (expire_after_hours qui sopra compreso, riportato a 1–24 ore). max_rooms e max_participants: 0 = nessun limite.
     'max_rooms' => 4,
     'max_participants' => 6,
     'rooms_limit_message' => 'Al momento tutti i tavoli sono occupati. Riprova tra qualche minuto.',
+    // :max diventa il numero massimo di giocatori.
+    'room_full_message' => 'Il tavolo è al completo (:max giocatori). Riprova più tardi.',
+    // Lanci recenti che vede chi entra (e che tiene il registro del browser), 10–100.
+    'history_limit' => 20,
 
     'realtime' => $pusher
         ? [

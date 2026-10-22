@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\SettingsService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Support\Facades\Event;
@@ -12,7 +13,11 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Register any application services.
      */
-    public function register(): void {}
+    public function register(): void
+    {
+        // Impostazioni dei tavoli lette una volta per richiesta (scoped: si azzera tra una richiesta e l'altra).
+        $this->app->scoped(SettingsService::class);
+    }
 
     /**
      * Bootstrap any application services.
