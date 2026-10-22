@@ -55,12 +55,17 @@ function renderPool() {
   box.innerHTML = '';
   for (const t of TYPES) {
     const row = document.createElement('div');
-    row.className = 'die-tile';
-    row.innerHTML = `<div class="head"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[t]}</svg><span class="name">${t}</span></div>
+    row.className = 'die-tile' + (pool[t] ? ' active' : '');
+    row.innerHTML = `<button class="head" type="button" aria-pressed="${pool[t] ? 'true' : 'false'}" aria-label="${pool[t] ? 'Escludi' : 'Includi'} il ${t} dal lancio"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[t]}</svg><span class="name">${t}</span></button>
       <div class="stepper"><button class="step" type="button" aria-label="Togli un ${t}" ${pool[t] ? '' : 'disabled'}>−</button>
       <span class="count" aria-live="polite">${pool[t]}</span>
       <button class="step" type="button" aria-label="Aggiungi un ${t}" ${total >= MAX_DICE ? 'disabled' : ''}>+</button></div>`;
-    const [minus, plus] = row.querySelectorAll('button');
+    const [head, minus, plus] = row.querySelectorAll('button');
+    head.addEventListener('click', () => {
+      if (pool[t]) pool[t] = 0;
+      else if (poolList().length < MAX_DICE) pool[t] = 1;
+      renderPool();
+    });
     minus.addEventListener('click', () => { pool[t] = Math.max(0, pool[t] - 1); renderPool(); });
     plus.addEventListener('click', () => { if (poolList().length < MAX_DICE) pool[t]++; renderPool(); });
     box.appendChild(row);
