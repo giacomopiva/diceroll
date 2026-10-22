@@ -2,6 +2,9 @@
   "_echo-B1nH64_W.js": {
     "file": "assets/echo-B1nH64_W.js"
   },
+  "_presets-DP3rrRx6.js": {
+    "file": "assets/presets-DP3rrRx6.js"
+  },
   "resources/css/app.css": {
     "file": "assets/app-CsdbagXp.css",
     "src": "resources/css/app.css",
@@ -21,16 +24,20 @@
     ]
   },
   "resources/js/join.js": {
-    "file": "assets/join-CzxJxoU2.js",
+    "file": "assets/join-DTeITagY.js",
     "src": "resources/js/join.js",
-    "isEntry": true
+    "isEntry": true,
+    "imports": [
+      "_presets-DP3rrRx6.js"
+    ]
   },
   "resources/js/table.js": {
-    "file": "assets/table-CbeNlzNz.js",
+    "file": "assets/table-D_lvYgYb.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [
-      "_echo-B1nH64_W.js"
+      "_echo-B1nH64_W.js",
+      "_presets-DP3rrRx6.js"
     ]
   }
 }

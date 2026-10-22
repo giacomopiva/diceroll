@@ -4,6 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { PAD, PROTOS, cellOf, resultFace } from './geometry.js';
 import { DT, TRAY, mulberry32, plan, simulate } from './physics.js';
 import { playHit } from './audio.js';
+import { TEXTURE_URL, finishOf } from '../presets.js';
 
 // Lato in px di una cella dell'atlante delle facce.
 const CELL = 256;
@@ -66,12 +67,27 @@ function labelSize(ctx, proto, S) {
   return (2 * r * LABEL_FILL[proto.type]) / diag;
 }
 
-function drawCell(ctx, proto, f, cell, C, pal, size, bump) {
+function drawCell(ctx, proto, f, cell, C, pal, size, bump, img) {
   const { cols } = proto.atlas, x0 = (cell % cols) * C, y0 = Math.floor(cell / cols) * C;
   const P = (u, v) => [x0 + (0.5 + (u - 0.5) * PAD) * C, y0 + (1 - (0.5 + (v - 0.5) * PAD)) * C];
   const [mx, my] = P(f.inc.u, f.inc.v);
   if (bump) {
     ctx.fillStyle = '#fff'; ctx.fillRect(x0, y0, C, C); // superficie: alta
+  } else if (img) {
+    // Ritaglio quadrato diverso per ogni faccia (deciso dall'indice della cella, uguale per tutti).
+    const side = Math.min(img.naturalWidth, img.naturalHeight) * 0.55;
+    const h = Math.imul(cell + 1, 2654435761) >>> 0, h2 = Math.imul(cell + 7, 40503) >>> 0;
+    const sx = (h % 1000) / 1000 * (img.naturalWidth - side), sy = (h2 % 1000) / 1000 * (img.naturalHeight - side);
+    ctx.drawImage(img, sx, sy, side, side, x0, y0, C, C);
+    // Volume: penombra ai bordi della faccia e una chiazza uniforme dietro al numero, per leggerlo.
+    const g = ctx.createRadialGradient(mx, my - C * 0.1, C * 0.03, mx, my, C * 0.55);
+    g.addColorStop(0, 'rgba(255,255,255,.08)'); g.addColorStop(1, 'rgba(0,0,0,.4)');
+    ctx.fillStyle = g; ctx.fillRect(x0, y0, C, C);
+    if (proto.type !== 'd4') {
+      const plate = ctx.createRadialGradient(mx, my, 0, mx, my, size * 0.62);
+      plate.addColorStop(0, pal.base); plate.addColorStop(0.75, pal.base); plate.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.save(); ctx.globalAlpha = 0.62; ctx.fillStyle = plate; ctx.fillRect(x0, y0, C, C); ctx.restore();
+    }
   } else {
     ctx.fillStyle = pal.base; ctx.fillRect(x0, y0, C, C);
     ctx.beginPath();
@@ -96,12 +112,13 @@ function drawCell(ctx, proto, f, cell, C, pal, size, bump) {
 
 /**
  * Disegna l'atlante delle facce di un tipo di dado (celle C×C) nel colore dato.
+ * img: immagine della finitura, al posto del colore pieno.
  * mode 'bump': mappa d'altezza in bianco e nero (numeri incavati), senza colore né bordi.
  */
-export function drawAtlas(ctx, proto, hex, C, mode = 'color') {
+export function drawAtlas(ctx, proto, hex, C, mode = 'color', img = null) {
   const pal = palette(hex);
   const size = proto.type === 'd4' ? 0 : labelSize(ctx, proto, C * PAD);
-  proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal, size, mode === 'bump'));
+  proto.faces.forEach((f, fi) => drawCell(ctx, proto, f, cellOf(proto, fi), C, pal, size, mode === 'bump', img));
 }
 
 /* ---------------- Cornice di legno ---------------- */
@@ -316,13 +333,45 @@ export function createScene(canvas, stage, opts = {}) {
     bumpCache.set(proto.type, t);
     return t;
   }
+  // Immagini delle finiture: caricate al primo uso; a caricamento finito le texture già create si ridisegnano.
+  const finishImgs = new Map(), repaints = new Map(); // nome → img | callback da rieseguire
+  function finishImage(name) {
+    if (!finishImgs.has(name)) {
+      const img = new Image();
+      img.onload = () => { (repaints.get(name) || []).forEach((fn) => fn()); repaints.delete(name); };
+      img.src = TEXTURE_URL(name);
+      finishImgs.set(name, img);
+    }
+    const img = finishImgs.get(name);
+    return img.complete && img.naturalWidth ? img : null;
+  }
+  // Parametri del materiale per finitura: il glitter riflette l'ambiente e le scaglie chiare brillano appena.
+  const FINISH_MAT = {
+    gold: { metalness: 0.75, roughness: 0.3, emissive: 0.22 },
+    red: { metalness: 0.2, roughness: 0.32, emissive: 0.18 },
+    blue: { metalness: 0.2, roughness: 0.32, emissive: 0.18 },
+    pink: { metalness: 0.2, roughness: 0.32, emissive: 0.18 },
+    lime: { metalness: 0.2, roughness: 0.32, emissive: 0.18 },
+    black: { metalness: 0.3, roughness: 0.28, emissive: 0.3 },
+  };
   function diceMaterial(proto, hex) {
     const key = proto.type + '|' + hex;
     if (matCache.has(key)) return matCache.get(key);
     const C = CELL, { cols, rows } = proto.atlas;
-    const map = canvasTexture(cols * C, rows * C, (ctx) => drawAtlas(ctx, proto, hex, C));
+    const finish = finishOf(hex);
+    const paint = (ctx) => drawAtlas(ctx, proto, hex, C, 'color', finish && finishImage(finish.texture));
+    const map = canvasTexture(cols * C, rows * C, paint);
     const mat = new THREE.MeshPhysicalMaterial({ map, roughness: 0.32, metalness: 0, clearcoat: 0.85, clearcoatRoughness: 0.16,
       bumpMap: bumpTexture(proto), bumpScale: BUMP_SCALE });
+    if (finish) {
+      const f = FINISH_MAT[finish.texture];
+      Object.assign(mat, { metalness: f.metalness, roughness: f.roughness, emissiveMap: map, emissive: new THREE.Color(1, 1, 1), emissiveIntensity: f.emissive, envMapIntensity: 1.4 });
+      if (!finishImage(finish.texture)) {
+        const list = repaints.get(finish.texture) || [];
+        list.push(() => { const ctx = map.image.getContext('2d'); paint(ctx); map.needsUpdate = true; });
+        repaints.set(finish.texture, list);
+      }
+    }
     matCache.set(key, mat);
     return mat;
   }
