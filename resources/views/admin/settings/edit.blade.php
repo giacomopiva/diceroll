@@ -27,7 +27,8 @@
                 <div class="col-lg-6">
                     <div class="card rounded-3 overflow-hidden">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="ti ti-clock-hour-4 me-2 text-secondary"></i>Durata e storico</h3>
+                            <h3 class="card-title"><i class="ti ti-users-group me-2 text-secondary"></i>Regole dei tavoli</h3>
+                            <div class="card-actions"><span class="badge bg-blue-lt">Personalizzabile dall'utente</span></div>
                         </div>
                         <div class="card-body">
                             <x-admin.input-range
@@ -35,16 +36,30 @@
                                 :label="'Scadenza del tavolo'"
                                 :value="$expireHours"
                                 :min="1" :max="24" :unit="'ore'" :unit-one="'ora'" :required="true"
-                                :description="'Un tavolo senza attività per questo tempo non è più raggiungibile. Vale subito anche per i tavoli già aperti: abbassandola, quelli fermi da più tempo scadono adesso. I dati restano '.config('tavolo.retention_days').' giorni per le statistiche.'">
+                                :description="'Un tavolo senza attività per questo tempo non è più raggiungibile. Vale subito anche per i tavoli già aperti: abbassandola, quelli fermi da più tempo scadono adesso. I dati restano '.config('tavolo.retention_days').' giorni per le statistiche. Gli utenti possono sceglierne una propria (1–24 ore).'">
                                 <div class="small mt-1" id="expireImpact" aria-live="polite"></div>
                             </x-admin.input-range>
+
+                            <x-admin.input-number
+                                :name="'max_participants'"
+                                :label="'Giocatori per tavolo'"
+                                :value="$maxParticipants"
+                                :description="'0 = nessun limite. Contano i giocatori online; chi è già dentro non viene espulso. Gli utenti possono sceglierne un numero proprio (2–10).'"
+                                :min="0" :required="true" />
 
                             <x-admin.input-range
                                 :name="'history_limit'"
                                 :label="'Lanci nello storico'"
                                 :value="$historyLimit"
                                 :min="10" :max="100" :unit="'lanci'" :required="true"
-                                :description="'Quanti lanci recenti vede chi entra in un tavolo, e quanti ne tiene il registro.'" />
+                                :description="'Quanti lanci recenti vede chi entra in un tavolo, e quanti ne tiene il registro. Gli utenti possono sceglierne un numero proprio (10–100).'" />
+
+                            <x-admin.textarea
+                                :name="'room_full_message'"
+                                :label="'Messaggio a tavolo pieno'"
+                                :value="$fullMessage"
+                                :description="'Mostrato a chi prova a entrare in un tavolo al completo. :max diventa il numero di giocatori. Se lo svuoti torna il testo predefinito. Gli utenti possono scriverne uno proprio.'"
+                                :rows="3" />
                         </div>
                     </div>
                 </div>
@@ -52,21 +67,15 @@
                 <div class="col-lg-6">
                     <div class="card rounded-3 overflow-hidden">
                         <div class="card-header">
-                            <h3 class="card-title"><i class="ti ti-adjustments me-2 text-secondary"></i>Limiti e messaggi</h3>
+                            <h3 class="card-title"><i class="ti ti-adjustments me-2 text-secondary"></i>Limiti del sito</h3>
+                            <div class="card-actions"><span class="badge bg-secondary-lt">Solo admin</span></div>
                         </div>
                         <div class="card-body">
                             <x-admin.input-number
                                 :name="'max_rooms'"
                                 :label="'Tavoli aperti insieme'"
                                 :value="$maxRooms"
-                                :description="'0 = nessun limite. Contano i tavoli non scaduti (ora aperti: '.$openRooms.').'"
-                                :min="0" :required="true" />
-
-                            <x-admin.input-number
-                                :name="'max_participants'"
-                                :label="'Giocatori per tavolo'"
-                                :value="$maxParticipants"
-                                :description="'0 = nessun limite. Contano i giocatori online; chi è già dentro non viene espulso.'"
+                                :description="'0 = nessun limite. Contano i tavoli non scaduti, di tutti (ora aperti: '.$openRooms.').'"
                                 :min="0" :required="true" />
 
                             <x-admin.textarea
@@ -74,13 +83,6 @@
                                 :label="'Messaggio a tavoli esauriti'"
                                 :value="$message"
                                 :description="'Mostrato nella home al posto del pulsante «Crea un tavolo». Se lo svuoti torna il testo predefinito.'"
-                                :rows="3" />
-
-                            <x-admin.textarea
-                                :name="'room_full_message'"
-                                :label="'Messaggio a tavolo pieno'"
-                                :value="$fullMessage"
-                                :description="'Mostrato a chi prova a entrare in un tavolo al completo. :max diventa il numero di giocatori. Se lo svuoti torna il testo predefinito.'"
                                 :rows="3" />
                         </div>
                     </div>

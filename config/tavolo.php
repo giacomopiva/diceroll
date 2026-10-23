@@ -28,6 +28,14 @@ return [
     // Lanci recenti che vede chi entra (e che tiene il registro del browser), 10–100.
     'history_limit' => 20,
 
+    // Immagine che l'utente mette nell'intestazione dei suoi tavoli. Limiti provvisori: max_kb in kB,
+    // max_px = lato massimo (larghezza e altezza). SVG escluso di proposito (può contenere script).
+    'logo' => [
+        'mimes' => ['png', 'jpg', 'webp'],
+        'max_kb' => 2048,
+        'max_px' => 2000,
+    ],
+
     'realtime' => $pusher
         ? [
             'driver' => 'pusher',

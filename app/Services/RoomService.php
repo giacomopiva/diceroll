@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Events\ParticipantJoined;
 use App\Models\Participant;
 use App\Models\Room;
+use App\Models\User;
 use App\Support\SafeBroadcast;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -22,13 +23,15 @@ class RoomService
     /** Il tavolo ha già il massimo di partecipanti online? Senza limite (0) mai. */
     public function isFull(Room $room): bool
     {
-        return $this->settings->hasParticipantsLimit()
-            && $room->participants()->online()->count() >= $this->settings->maxParticipants();
+        return $this->settings->hasParticipantsLimit($room)
+            && $room->participants()->online()->count() >= $this->settings->maxParticipants($room);
     }
 
-    public function createRoom(): Room
+    /** Il tavolo di un utente loggato segue le sue regole; quello di un guest (null) le regole dell'admin. */
+    public function createRoom(?User $owner = null): Room
     {
         return Room::create([
+            'user_id' => $owner?->id,
             'code' => Room::generateCode(),
             'last_activity_at' => now(),
         ]);
@@ -70,7 +73,7 @@ class RoomService
 
         // Chi è già dentro può sempre aggiornare i propri dati; solo i nuovi arrivi trovano il tavolo pieno.
         if (! $participant && $this->isFull($room)) {
-            throw ValidationException::withMessages(['room' => $this->fullMessage()]);
+            throw ValidationException::withMessages(['room' => $this->fullMessage($room)]);
         }
 
         if (in_array($data['color'], $this->takenColors($room, $participant), true)) {
@@ -93,9 +96,9 @@ class RoomService
         return $participant;
     }
 
-    public function fullMessage(): string
+    public function fullMessage(Room $room): string
     {
-        return $this->settings->roomFullMessage();
+        return $this->settings->roomFullMessage($room);
     }
 
     /** Il browser smette di essere un partecipante: per tornare serve rifare il join. */

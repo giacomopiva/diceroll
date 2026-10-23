@@ -17,7 +17,7 @@ class RoomController extends AdminController
     {
         $status = in_array($request->query('stato'), ['aperti', 'scaduti'], true) ? $request->query('stato') : 'tutti';
 
-        $query = $this->stats->withCounts(Room::query())->orderByDesc('last_activity_at');
+        $query = $this->stats->withCounts(Room::query())->with('user')->orderByDesc('last_activity_at');
         if ($status === 'aperti') {
             $query->active();
         } elseif ($status === 'scaduti') {

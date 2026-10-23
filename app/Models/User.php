@@ -6,6 +6,7 @@ use App\Notifications\VerifyEmailNotification;
 use ESolution\DBEncryption\Traits\EncryptedAttribute;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Lab404\Impersonate\Models\Impersonate;
@@ -26,6 +27,14 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'last_login',
         'status',
+        'table_expire_hours',
+        'table_max_participants',
+        'table_history_limit',
+        'table_full_message',
+        'table_logo_path',
+        'table_logo_position',
+        'table_logo_vertical',
+        'table_logo_size',
     ];
 
     /**
@@ -67,6 +76,12 @@ class User extends Authenticatable implements MustVerifyEmail
         1 => 'Attivo',
         0 => 'Disattivo',
     ];
+
+    /** I tavoli creati da questo utente. @return HasMany<Room, $this> */
+    public function rooms(): HasMany
+    {
+        return $this->hasMany(Room::class);
+    }
 
     /**
      * Get the available user roles.

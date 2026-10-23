@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Table\PresenceController;
 use App\Http\Controllers\Table\RollController;
 use App\Http\Controllers\Table\TableController;
+use App\Http\Controllers\User\AppearanceController;
 use App\Models\Room;
 use Illuminate\Support\Facades\Route;
 use Lab404\Impersonate\Controllers\ImpersonateController;
@@ -25,6 +26,7 @@ Route::post('/rooms', [App\Http\Controllers\Table\HomeController::class, 'store'
 Route::prefix('/t/{room}')->where(['room' => Room::CODE_PATTERN])
     ->middleware('room.active')->name('table.')->group(function () {
         Route::get('/', [TableController::class, 'show'])->name('show');
+        Route::get('/logo', [TableController::class, 'logo'])->name('logo');
         Route::post('/join', [TableController::class, 'join'])
             ->middleware('throttle:20,1')->name('join');
         Route::post('/rolls', [RollController::class, 'store'])
@@ -131,4 +133,15 @@ Route::get('/user', function () {
 
 Route::middleware(['auth', 'role:user', 'status'])->prefix('user')->name('user.')->group(function () {
     Route::get('/home', [App\Http\Controllers\User\HomeController::class, 'index'])->name('home');
+
+    // Regole dei tavoli creati dall'utente (sovrascrivono quelle dell'admin)
+    Route::get('/settings', [App\Http\Controllers\User\SettingsController::class, 'edit'])->name('settings.edit');
+    Route::put('/settings', [App\Http\Controllers\User\SettingsController::class, 'update'])->name('settings.update');
+    Route::delete('/settings', [App\Http\Controllers\User\SettingsController::class, 'reset'])->name('settings.reset');
+
+    // Aspetto dei tavoli dell'utente (immagine nell'intestazione)
+    Route::get('/appearance', [AppearanceController::class, 'edit'])->name('appearance.edit');
+    Route::put('/appearance', [AppearanceController::class, 'update'])->name('appearance.update');
+    Route::delete('/appearance', [AppearanceController::class, 'destroy'])->name('appearance.destroy');
+    Route::get('/appearance/image', [AppearanceController::class, 'image'])->name('appearance.image');
 });

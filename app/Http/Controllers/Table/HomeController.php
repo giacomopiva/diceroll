@@ -7,6 +7,7 @@ use App\Services\RoomService;
 use App\Services\SettingsService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 class HomeController extends Controller
 {
@@ -20,13 +21,13 @@ class HomeController extends Controller
         ]);
     }
 
-    public function store(): RedirectResponse
+    public function store(Request $request): RedirectResponse
     {
         if (! $this->rooms->canCreateRoom()) {
             return redirect()->route('home');
         }
 
-        $room = $this->rooms->createRoom();
+        $room = $this->rooms->createRoom($request->user());
 
         return redirect()->route('table.show', $room);
     }

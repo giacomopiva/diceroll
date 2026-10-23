@@ -22,7 +22,10 @@
     </div>
   </header>
 
-  <main class="stage" id="stage">
+  <main class="stage{{ $logo ? ' has-logo logo-at-'.$logo['vertical'] : '' }}" id="stage"@if ($logo) style="--s: {{ $logo['size'] / 100 }}"@endif>
+    @if ($logo)
+    <img class="stage-logo logo-{{ $logo['position'] }} logo-{{ $logo['vertical'] }}" id="stageLogo" data-side="{{ $logo['vertical'] }}" src="{{ $logo['url'] }}" alt="">
+    @endif
     <canvas id="c" aria-label="Tavolo 3D con i dadi lanciati"></canvas>
     <div class="hud" id="hud" hidden>avvio…</div>
     <div class="toast" id="toast" hidden></div>
@@ -51,7 +54,7 @@
         @endif
         <button class="btn" id="soundBtn" type="button" aria-pressed="true">Suono: sì</button>
       </div>
-      <p class="note">I tavoli scadono dopo {{ $settings->expireLabel() }} senza attività e vengono cancellati, con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.</p>
+      <p class="note">I tavoli scadono dopo {{ $settings->expireLabel($room) }} senza attività e vengono cancellati, con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.</p>
     </section>
 
     <section>

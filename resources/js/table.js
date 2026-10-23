@@ -29,6 +29,12 @@ let rolling = false;
 let table = null;
 try {
   table = createScene($('#c'), $('#stage'), {
+    // Con l'immagine del proprietario sul palco la vaschetta si sposta dal lato opposto di quanto occupa il logo
+    // (un po' meno della sua altezza: intorno alla vaschetta la camera lascia già un suo margine).
+    logoInset: () => {
+      const el = $('#stageLogo');
+      return el ? { px: Math.round(el.offsetHeight * 0.79), side: el.dataset.side } : { px: 0, side: 'top' };
+    },
     onStats(fps, ms, dice, simMs, calls) {
       if (debug) $('#hud').innerHTML = `<b>${fps.toFixed(0)}</b> fps · ${ms.toFixed(1)} ms/frame · ${dice} dadi · fisica ${simMs.toFixed(0)} ms · ${calls} draw call`;
     },

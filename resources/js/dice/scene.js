@@ -126,7 +126,11 @@ export function drawAtlas(ctx, proto, hex, C, mode = 'color', img = null) {
 // Materiale della pietra: colore, ruvidezza e microrilievo calcolati nello shader da un rumore 3D sulla
 // posizione nel mondo (niente texture, quindi niente giunture né stiramenti sugli spigoli arrotondati).
 // I colori per vertice di buildStoneRim (tinta del blocco × occlusione) moltiplicano il risultato.
+// Quanto muschio c'è su pietra e lastricato: 0 = nessuno, 1 = valore base, oltre 1 = più coprente.
+const MOSS_AMOUNT = 1.0;
+
 const STONE_GLSL = `
+const float MOSS = ${MOSS_AMOUNT.toFixed(3)};
 varying vec3 vStoneP;
 float sHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
 float sNoise(vec3 x) {
@@ -174,13 +178,23 @@ function stoneMaterial() {
         sCol *= mix(0.75, 1.0, smoothstep(0.0, 1.2, vStoneP.y));
         float sLichen = smoothstep(0.66, 0.76, sFbm(vStoneP * 0.8 + vec3(4.0, 1.0, 9.0))) * smoothstep(0.4, 1.0, vStoneP.y);
         sCol = mix(sCol, vec3(0.32, 0.31, 0.2), sLichen * 0.35);
+        // muschio: a chiazze, più fitto in basso (umidità) e con il bordo sfrangiato; due verdi per dare profondità
+        float sMoss = clamp(smoothstep(0.52, 0.66, sFbm(vStoneP * 1.1 + vec3(7.0, 3.0, 1.0)))
+          * (1.0 - 0.5 * smoothstep(0.1, 1.1, vStoneP.y)) * (0.55 + 0.45 * sNoise(vStoneP * 26.0)) * MOSS, 0.0, 1.0);
+        sMoss *= smoothstep(0.15, 0.45, sMoss + 0.25 * sNoise(vStoneP * 60.0));
+        // verde scuro e un po' oliva, con tinta che cambia piano piano e ciuffi più scuri nel fitto
+        vec3 sMossCol = mix(vec3(0.03, 0.06, 0.012), vec3(0.085, 0.13, 0.028), sNoise(vStoneP * 18.0 + 4.0));
+        sMossCol *= 0.75 + 0.5 * sFbm(vStoneP * 2.5 + 11.0);
+        sMossCol *= 1.0 - 0.35 * smoothstep(0.6, 1.0, sMoss);
+        sCol = mix(sCol, sMossCol, sMoss * 0.9);
         diffuseColor.rgb *= sCol;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(0.72 + 0.22 * sN2 - 0.1 * sVein + 0.05 * sLichen, 0.0, 1.0);`)
+        roughnessFactor = clamp(0.72 + 0.22 * sN2 - 0.1 * sVein + 0.05 * sLichen + 0.2 * sMoss, 0.0, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         // grana fine, solchi e piccoli pori (le cavità scendono, quindi l'altezza cala)
         float sH = sFbm(vStoneP * 2.4) * 0.5 + sFbm(vStoneP * 11.0) * 0.35 + sNoise(vStoneP * 45.0) * 0.12 + sGrain * 0.05 - sVein * 0.08
-          - smoothstep(0.8, 0.9, sNoise(vStoneP * 16.0 + 3.0)) * 0.3;
+          - smoothstep(0.8, 0.9, sNoise(vStoneP * 16.0 + 3.0)) * 0.3
+          + sMoss * (0.12 + 0.1 * sNoise(vStoneP * 38.0));          // il muschio è un tappeto morbido in rilievo
         normal = stoneBump(-vViewPosition, normal, vec2(dFdx(sH), dFdy(sH)) * 1.5, faceDirection);`);
   };
   return mat;
@@ -244,6 +258,16 @@ function pavingMaterial() {
         float pGrit = sNoise(vec3(vStoneP.xz * 60.0, 8.0)) * 0.6 + sNoise(vec3(vStoneP.xz * 14.0, 4.0)) * 0.4;
         vec3 pMortar = mix(vec3(0.026, 0.025, 0.023), vec3(0.052, 0.049, 0.044), smoothstep(0.35, 0.85, pGrit));
         pCol = mix(pCol, pMortar, pJoint);
+        // muschio: cresce dalle fughe e lungo la cornice, a chiazze, con il bordo sfrangiato
+        float pMossArea = smoothstep(0.5, 0.64, sFbm(vec3(vStoneP.xz * 0.9, 21.0)));
+        float pMossNear = max(1.0 - smoothstep(pW, pW + 0.16, pv.x), 0.7 * (1.0 - smoothstep(0.0, 1.1, TRAY_A - max(abs(vStoneP.z), 0.8660254 * abs(vStoneP.x) + 0.5 * abs(vStoneP.z)))));
+        float pMoss = clamp(pMossArea * pMossNear * (0.6 + 0.4 * sNoise(vec3(vStoneP.xz * 30.0, 2.0))) * MOSS * 1.4, 0.0, 1.0);
+        pMoss *= smoothstep(0.2, 0.5, pMoss + 0.25 * sNoise(vec3(vStoneP.xz * 70.0, 6.0)));
+        // verde scuro e un po' oliva, con tinta che cambia piano piano; il fitto è più scuro, il bordo più chiaro
+        vec3 pMossCol = mix(vec3(0.026, 0.052, 0.011), vec3(0.075, 0.115, 0.025), sNoise(vec3(vStoneP.xz * 16.0, 9.0)));
+        pMossCol *= 0.75 + 0.5 * sFbm(vec3(vStoneP.xz * 2.2, 14.0));
+        pMossCol *= 1.0 - 0.3 * smoothstep(0.6, 1.0, pMoss);
+        pCol = mix(pCol, pMossCol, pMoss * 0.92);
         // occlusione vicino alla cornice (distanza dalla parete esagonale più vicina)
         vec2 pa = abs(vStoneP.xz);
         float pWall = TRAY_A - max(pa.y, 0.8660254 * pa.x + 0.5 * pa.y);
@@ -251,13 +275,14 @@ function pavingMaterial() {
         diffuseColor.rgb = pCol;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
         // lastre un poco lucidate dall'uso, fughe opache
-        roughnessFactor = mix(0.62 + 0.28 * pM - 0.12 * pStain, 0.98, pJoint);`)
+        roughnessFactor = mix(mix(0.62 + 0.28 * pM - 0.12 * pStain, 0.98, pJoint), 0.96, pMoss);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         float pTilt = dot(pq - pv.yz - 0.5, vec2(pSeed - 0.5, pSeed2 - 0.5)) * 0.08;
         float pH = pBevel * 0.45 + pTilt + sFbm(vec3(vStoneP.xz * 4.0, pSeed * 5.0)) * 0.09
           + sFbm(vec3(vStoneP.xz * 14.0, 2.0)) * 0.06 + pG * 0.02
           - smoothstep(0.85, 0.93, sNoise(vec3(vStoneP.xz * 20.0, 5.0))) * 0.04
-          + pJoint * pGrit * 0.04;                                // graniglia in rilievo nella fuga
+          + pJoint * pGrit * 0.04                                 // graniglia in rilievo nella fuga
+          + pMoss * (0.08 + 0.07 * sNoise(vec3(vStoneP.xz * 40.0, 3.0)));  // muschio in rilievo
         normal = stoneBump(-vViewPosition, normal, vec2(dFdx(pH), dFdy(pH)), faceDirection);`);
   };
   return mat;
@@ -323,13 +348,20 @@ export function createScene(canvas, stage, opts = {}) {
     cam.left = -s; cam.right = s; cam.top = s; cam.bottom = -s; cam.near = 1; cam.far = 70; cam.updateProjectionMatrix();
   })();
 
-  function fitCamera() {
+  // Fascia libera in cima o in fondo al canvas (per l'immagine del proprietario): la vaschetta si adatta all'altezza
+  // rimanente e si sposta dal lato opposto, senza cambiare dimensioni relative né fisica.
+  // opts.logoInset() restituisce { px, side: 'top' | 'bottom' }.
+  function fitCamera(w, h) {
+    const want = opts.logoInset ? opts.logoInset() : { px: 0, side: 'top' };
+    const inset = Math.max(0, Math.min(want.px, h * 0.3));
+    camera.aspect = w / (h - inset);
     const tilt = 0.42; // inclinazione dalla verticale, in radianti
     const fv = THREE.MathUtils.degToRad(camera.fov / 2), fh = Math.atan(Math.tan(fv) * camera.aspect);
     const hw = Math.max(rimBox.max.x, -rimBox.min.x) + 0.3, hd = Math.max(rimBox.max.z, -rimBox.min.z) + 0.3;
     const dist = Math.max(hd / Math.tan(fv), hw / Math.tan(fh)) * 1.05 + 1.5;
     camera.position.set(0, Math.cos(tilt) * dist, Math.sin(tilt) * dist);
     camera.lookAt(0, 0, 0.35);
+    if (inset) camera.setViewOffset(w, h - inset, 0, want.side === 'bottom' ? 0 : -inset, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
   }
 
@@ -337,8 +369,7 @@ export function createScene(canvas, stage, opts = {}) {
     const w = stage.clientWidth, h = stage.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    fitCamera();
+    fitCamera(w, h);
   }
   new ResizeObserver(resize).observe(stage);
 

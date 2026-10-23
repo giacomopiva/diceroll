@@ -39,7 +39,15 @@ button{cursor:pointer}
 
 .stage{position:relative;min-height:0;border-radius:14px;overflow:hidden;background:#0c0f11;box-shadow:inset 0 0 0 1px var(--line)}
 #c{display:block;width:100%;height:100%}
-.hud{position:absolute;top:10px;left:10px;font:12px/1.35 var(--f-mono);font-variant-numeric:tabular-nums;background:var(--overlay);color:var(--text);padding:6px 9px;border-radius:8px;pointer-events:none;max-width:calc(100% - 20px)}
+.stage-logo{position:absolute;height:calc(192px * var(--s,1));max-height:calc(30% - 6px);width:auto;max-width:40%;object-fit:contain;pointer-events:none;z-index:1}
+.stage-logo.logo-top{top:6px}
+.stage-logo.logo-bottom{bottom:6px}
+.stage-logo.logo-left{left:14px}
+.stage-logo.logo-center{left:50%;transform:translateX(-50%)}
+.stage-logo.logo-right{right:14px}
+.stage.logo-at-bottom .hud{bottom:auto;top:10px}
+.stage.logo-at-bottom .toast{bottom:calc(192px * var(--s,1) + 20px)}
+.hud{position:absolute;bottom:10px;left:10px;font:12px/1.35 var(--f-mono);font-variant-numeric:tabular-nums;background:var(--overlay);color:var(--text);padding:6px 9px;border-radius:8px;pointer-events:none;max-width:calc(100% - 20px)}
 .hud b{color:var(--brass);font-weight:500}
 .loading{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:var(--muted);font-size:1rem}
 .loading.err{color:var(--bad)}

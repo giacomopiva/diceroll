@@ -14,7 +14,7 @@ class SettingsController extends AdminController
 
     public function edit(): View
     {
-        $open = Room::active()->get(['last_activity_at']);
+        $open = Room::active()->with('user:id,table_expire_hours')->get(['id', 'user_id', 'last_activity_at']);
 
         return view('admin.settings.edit', [
             'expireHours' => $this->settings->expireHours(),
@@ -25,7 +25,8 @@ class SettingsController extends AdminController
             'fullMessage' => $this->settings->roomFullTemplate(),
             'openRooms' => $open->count(),
             // Ore di inattività dei tavoli aperti: il pannello conta quanti scadrebbero con una scadenza più bassa.
-            'openRoomsIdleHours' => $open->map(fn (Room $r) => round($r->last_activity_at->diffInMinutes(now()) / 60, 2))->values(),
+            // Solo i tavoli che seguono la scadenza dell'admin: quelli con scadenza personale non cambiano.
+            'openRoomsIdleHours' => $open->filter(fn (Room $r) => $r->user?->table_expire_hours === null)->map(fn (Room $r) => round($r->last_activity_at->diffInMinutes(now()) / 60, 2))->values(),
         ]);
     }
 

@@ -4,9 +4,11 @@ namespace App\Models;
 
 use App\Services\SettingsService;
 use Carbon\Carbon;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -23,6 +25,7 @@ class Room extends Model
     public const CODE_PATTERN = '[a-hjkmnp-z2-9]{3}-[a-hjkmnp-z2-9]{3}-[a-hjkmnp-z2-9]{3}';
 
     protected $fillable = [
+        'user_id',
         'code',
         'last_activity_at',
     ];
@@ -39,10 +42,45 @@ class Room extends Model
         return 'code';
     }
 
-    /** Istante prima del quale l'ultima attività rende scaduto un tavolo. */
-    public static function expiryCutoff(): Carbon
+    /** Ore di inattività dopo cui scade questo tavolo: quelle del proprietario, o dell'admin per i guest. */
+    public function expireHours(): int
     {
-        return now()->subHours(app(SettingsService::class)->expireHours());
+        return app(SettingsService::class)->expireHours($this);
+    }
+
+    /** Istante prima del quale l'ultima attività rende scaduto questo tavolo. */
+    public function expiryCutoff(): Carbon
+    {
+        return now()->subHours($this->expireHours());
+    }
+
+    /**
+     * Applica $apply(query, istante di scadenza) separatamente ai tavoli che seguono la scadenza dell'admin
+     * e, per ogni durata personale in uso, a quelli degli utenti che l'hanno scelta. Resta una query sola.
+     *
+     * @param  Builder<Room>  $query
+     * @param  Closure(Builder<Room>, Carbon): mixed  $apply
+     * @return Builder<Room>
+     */
+    public static function whereExpiry(Builder $query, Closure $apply): Builder
+    {
+        $admin = app(SettingsService::class)->expireHours();
+        $custom = User::whereNotNull('table_expire_hours')->distinct()->pluck('table_expire_hours');
+
+        return $query->where(function (Builder $q) use ($apply, $admin, $custom) {
+            $q->where(fn (Builder $g) => $apply(
+                $g->whereDoesntHave('user', fn ($u) => $u->whereNotNull('table_expire_hours')),
+                now()->subHours($admin),
+            ));
+
+            foreach ($custom as $hours) {
+                $hours = max(SettingsService::EXPIRE_HOURS[0], min(SettingsService::EXPIRE_HOURS[1], (int) $hours));
+                $q->orWhere(fn (Builder $g) => $apply(
+                    $g->whereHas('user', fn ($u) => $u->where('table_expire_hours', $hours)),
+                    now()->subHours($hours),
+                ));
+            }
+        });
     }
 
     /**
@@ -51,7 +89,7 @@ class Room extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('last_activity_at', '>=', self::expiryCutoff());
+        return self::whereExpiry($query, fn (Builder $q, Carbon $cutoff) => $q->where('last_activity_at', '>=', $cutoff));
     }
 
     /**
@@ -60,12 +98,14 @@ class Room extends Model
      */
     public function scopeExpired(Builder $query): Builder
     {
-        return $query->where(fn (Builder $q) => $q->whereNull('last_activity_at')->orWhere('last_activity_at', '<', self::expiryCutoff()));
+        return self::whereExpiry($query, fn (Builder $q, Carbon $cutoff) => $q->where(
+            fn (Builder $w) => $w->whereNull('last_activity_at')->orWhere('last_activity_at', '<', $cutoff)
+        ));
     }
 
     public function isExpired(): bool
     {
-        return ($this->last_activity_at ?? $this->created_at)->lt(self::expiryCutoff());
+        return ($this->last_activity_at ?? $this->created_at)->lt($this->expiryCutoff());
     }
 
     /** Segna attività, ma al massimo una scrittura ogni 5 minuti (per l'apertura della pagina). */
@@ -110,6 +150,12 @@ class Room extends Model
             $minutes < 1440 => intdiv($minutes, 60).' h '.($minutes % 60).' min',
             default => intdiv($minutes, 1440).' g '.intdiv($minutes % 1440, 60).' h',
         };
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /** @return HasMany<Participant, $this> */

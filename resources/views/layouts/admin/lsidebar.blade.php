@@ -149,6 +149,26 @@
                         </a>
                     </li>
 
+                    <li class="nav-item">
+                        <a class="nav-link {{ isSectionActive(['settings'], 1) ? 'active' : '' }}"
+                            href="{{ route('user.settings.edit') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                <i class="ti ti-adjustments"></i>
+                            </span>
+                            <span class="nav-link-title">Impostazioni</span>
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {{ isSectionActive(['appearance'], 1) ? 'active' : '' }}"
+                            href="{{ route('user.appearance.edit') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                <i class="ti ti-palette"></i>
+                            </span>
+                            <span class="nav-link-title">Aspetto</span>
+                        </a>
+                    </li>
+
                 @endrole
 
             </ul>

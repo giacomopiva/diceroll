@@ -72,7 +72,7 @@
         </div>
         <p class="text-secondary small mt-3">
             @inject('settings', 'App\Services\SettingsService')
-            I tavoli scadono dopo {{ $settings->expireLabel() }} senza attività e vengono cancellati,
+            I tavoli dei guest scadono dopo {{ $settings->expireLabel() }} senza attività (quelli degli utenti seguono la scadenza scelta dall'utente) e vengono cancellati,
             con partecipanti e lanci, {{ config('tavolo.retention_days') }} giorni dopo la scadenza.
         </p>
     </div>

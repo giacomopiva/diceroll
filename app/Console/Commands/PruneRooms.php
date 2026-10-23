@@ -13,10 +13,15 @@ class PruneRooms extends Command
 
     public function handle(): int
     {
-        $cutoff = Room::expiryCutoff()->subDays(config('tavolo.retention_days'));
+        $days = (int) config('tavolo.retention_days');
 
-        $query = Room::where(fn ($q) => $q->where('last_activity_at', '<', $cutoff)
-            ->orWhere(fn ($q) => $q->whereNull('last_activity_at')->where('created_at', '<', $cutoff)));
+        // Ogni tavolo si cancella `retention_days` dopo la propria scadenza (che può essere personale).
+        $query = Room::whereExpiry(Room::query(), function ($q, $expiry) use ($days) {
+            $cutoff = $expiry->copy()->subDays($days);
+
+            return $q->where(fn ($w) => $w->where('last_activity_at', '<', $cutoff)
+                ->orWhere(fn ($w) => $w->whereNull('last_activity_at')->where('created_at', '<', $cutoff)));
+        });
 
         $count = $query->count();
 
