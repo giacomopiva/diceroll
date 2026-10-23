@@ -48,7 +48,11 @@ class AppearanceService
 
     public function response(string $path)
     {
-        return Storage::disk(self::DISK)->response($path, null, [
+        // Niente response() del disco: usa fpassthru(), disabilitata su Cloudways.
+        $disk = Storage::disk(self::DISK);
+
+        return response($disk->get($path), 200, [
+            'Content-Type' => $disk->mimeType($path) ?: 'application/octet-stream',
             'Cache-Control' => 'public, max-age=86400',
             'X-Content-Type-Options' => 'nosniff',
         ]);
