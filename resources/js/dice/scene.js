@@ -485,7 +485,7 @@ export function createScene(canvas, stage, opts = {}) {
       const proto = PROTOS[type];
       const mesh = new THREE.Mesh(proto.geometry, diceMaterial(proto, color));
       mesh.castShadow = true; mesh.receiveShadow = true;
-      mesh.userData = { rollId: id, index: i, playerId, resting: false };
+      mesh.userData = { rollId: id, index: i, playerId, type, resting: false };
       scene.add(mesh); meshes.push(mesh); byKey.set(keyOf(mesh), mesh);
       return { mesh, proto, frames: sim.frames[i], qR: qRs[i] };
     });
@@ -524,8 +524,8 @@ export function createScene(canvas, stage, opts = {}) {
     raycaster.setFromCamera(ndc, camera);
     const hit = raycaster.intersectObjects(meshes, false)[0];
     if (!hit) return null;
-    const { rollId, index, playerId, resting } = hit.object.userData, p = hit.object.position;
-    return { rollId, index, playerId, resting, position: { x: p.x, z: p.z } };
+    const { rollId, index, playerId, type, resting } = hit.object.userData, p = hit.object.position;
+    return { rollId, index, playerId, type, resting, position: { x: p.x, z: p.z } };
   }
 
   function positionOf(rollId, index) {

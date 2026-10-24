@@ -104,7 +104,8 @@ function fillLogEntry(li, roll) {
   li._roll = roll;
   renderVals(li);
 }
-// Chip dei dadi: barrati se già rilanciati; bottoni (rilancio da tastiera) per i miei dadi ancora sul tavolo.
+// Chip dei dadi: barrati se sostituiti da un vecchio rilancio (storico); bottoni (nuovo lancio da tastiera)
+// per i miei dadi ancora sul tavolo.
 function renderVals(li) {
   const roll = li._roll;
   if (!roll) return;
@@ -113,7 +114,7 @@ function renderVals(li) {
     const inner = `<i>${t}</i> ${roll.values[i]}`;
     if (done) return `<span class="chip rerolled" title="rilanciato">${inner}</span>`;
     if (roll.player.id === myId && table.positionOf(roll.id, i)) {
-      return `<button type="button" class="chip" data-index="${i}" aria-label="Rilancia il ${t} (era ${roll.values[i]})">${inner}</button>`;
+      return `<button type="button" class="chip" data-index="${i}" data-type="${t}" aria-label="Lancia un nuovo ${t}">${inner}</button>`;
     }
     return `<span class="chip">${inner}</span>`;
   }).join('');
@@ -126,11 +127,7 @@ function refreshRerollable() {
 }
 $('#log').addEventListener('click', (e) => {
   const btn = e.target.closest('button.chip');
-  if (!btn || rolling) return;
-  const li = btn.closest('li'), roll = li && li._roll;
-  if (!roll) return;
-  const index = Number(btn.dataset.index), position = table.positionOf(roll.id, index);
-  if (position) rerollDie(roll.id, index, position);
+  if (btn && !rolling) rollDice([btn.dataset.type]);
 });
 function showToast(roll) {
   const t = $('#toast');
@@ -239,28 +236,9 @@ async function rollDice(list) {
   }
 }
 
-/* ---------------- Rilancio di un dado ---------------- */
-// Il corpo contiene solo indice e punto di partenza: valore e seed li decide il server.
-async function rerollDie(rollId, index, origin) {
-  if (rolling) return;
-  rolling = true;
-  $('#rollBtn').disabled = true;
-  ensureAudio();
-  try {
-    const url = document.body.dataset.rerollUrl.replace('__ROLL__', rollId);
-    const { data } = await window.axios.post(url, { index, origin }, { headers: { 'X-Socket-ID': window.Echo.socketId() } });
-    startRoll(data);
-  } catch (e) {
-    const status = e.response && e.response.status;
-    if (status === 403 || status === 410) location.reload();
-    else if (status === 409) { rerolled.add(rollId + ':' + index); refreshRerollable(); showMessage('Questo dado è già stato rilanciato.'); }
-    else if (status === 429) showMessage('Troppi lanci, aspetta un momento.');
-    else showMessage('Non riesco a rilanciare, riprova.');
-    rolling = false;
-    renderPool();
-  }
-}
-
+/* ---------------- Nuovo lancio da un mio dado ---------------- */
+// Click/tap su un mio dado fermo (o sul suo chip nel registro): è un lancio nuovo di un dado dello stesso tipo,
+// uguale a premere Lancia con quel solo dado. Non è legato al lancio da cui viene.
 const canvas = $('#c');
 const isMine = (hit) => hit && hit.playerId === myId && hit.resting;
 let down = null;
@@ -269,7 +247,7 @@ canvas.addEventListener('pointerup', (e) => {
   const d = down; down = null;
   if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) >= 6 || performance.now() - d.t >= 500) return; // scroll o pressione lunga
   const hit = table.pick(e.clientX, e.clientY);
-  if (isMine(hit) && !rolling) rerollDie(hit.rollId, hit.index, hit.position);
+  if (isMine(hit) && !rolling) rollDice([hit.type]);
 });
 canvas.addEventListener('pointercancel', () => { down = null; });
 if (matchMedia('(hover: hover)').matches) {

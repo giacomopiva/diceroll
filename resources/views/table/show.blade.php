@@ -7,7 +7,7 @@
 
 @section('body')
 @inject('settings', 'App\Services\SettingsService')
-<body data-history-limit="{{ $historyLimit }}" data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-reroll-url="{{ route('table.rolls.reroll', [$room, '__ROLL__']) }}" data-heartbeat-url="{{ route('table.heartbeat', $room) }}" data-leave-url="{{ route('table.leave', $room) }}" data-player-id="{{ $participant->id }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
+<body data-history-limit="{{ $historyLimit }}" data-debug="{{ app()->environment('local') ? '1' : '0' }}" data-room="{{ $room->code }}" data-room-url="{{ route('table.show', $room) }}" data-rolls-url="{{ route('table.rolls.store', $room) }}" data-heartbeat-url="{{ route('table.heartbeat', $room) }}" data-leave-url="{{ route('table.leave', $room) }}" data-player-id="{{ $participant->id }}" data-name="{{ $participant->nickname }}" data-color="{{ $participant->color }}">
 <div class="app">
   <header class="bar">
     <div class="brand">Tavolo dei Dadi <small>tavolo {{ $room->code }}</small></div>
@@ -43,7 +43,7 @@
       <div class="pool" id="pool"></div>
       <div class="formula" id="formula"></div>
       <button class="roll" id="rollBtn" type="button">Lancia <kbd>Spazio</kbd></button>
-      <p class="note">Tocca un tuo dado fermo per rilanciarlo.</p>
+      <p class="note">Tocca un tuo dado fermo per lanciarne uno nuovo.</p>
     </section>
 
     <section>
