@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { BEVEL, PROTOS, SIDES, TYPES, resultFace, symmetryQuat } from '../../resources/js/dice/geometry.js';
-import { FLOOR, MAX_STEPS, TRAY, insideTray, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
+import { FLOOR, MAX_STEPS, SPREAD_FROM, TRAY, insideTray, mulberry32, plan, simulate } from '../../resources/js/dice/physics.js';
 import { selfTest } from '../../resources/js/dice/selftest.js';
 
 const frameOf = (sim, i, step) => {
@@ -216,9 +216,14 @@ describe('simulazione e orientamento', () => {
     const cases = [
       { list: ['d20'], seed: 1, steps: 126, pos: [[-2.356, 1.0759]] },
       { list: ['d6', 'd8', 'd12'], seed: 2024, steps: 120, pos: [[-5.6565, 4.3675], [-1.5374, 0.3666], [-7.1248, 0.2949]] },
+      // Da 10 dadi in su la partenza è quella "a più lati" (SPREAD_FROM): questi due casi la bloccano.
       {
-        list: ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd20', 'd10', 'd8', 'd6'], seed: 77, steps: 154,
-        pos: [[-0.7534, -4.7599], [4.3399, -3.0634], [5.9883, -2.9546], [-0.2586, -3.2641], [1.9129, -3.0806], [6.6293, -1.3318], [0.0452, 0.6613], [3.6128, -0.1258], [5.0054, 1.3097], [1.4525, 1.7258]],
+        list: ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd20', 'd10', 'd8', 'd6'], seed: 77, steps: 132,
+        pos: [[-0.4309, 2.8829], [-4.6505, 2.8557], [-5.223, -1.8586], [5.717, -3.5635], [-1.5673, 0.8919], [-3.2563, -4.6825], [2.6682, 5.0569], [-2.4187, 2.7082], [-3.4316, 0.7952], [3.2734, 1.1221]],
+      },
+      {
+        list: Array.from({ length: 30 }, (_, i) => ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'][i % 6]), seed: 4242, steps: 227,
+        pos: [[-4.8768, 1.1016], [0.3288, -6.0175], [7.5234, 1.2205], [-1.6557, -0.1138], [5.2311, -1.5413], [0.2595, 5.5085], [-2.4156, -4.673], [6.9771, -1.1299], [-2.9777, 4.0362], [-3.4861, 0.1674], [1.2681, -1.4394], [2.9367, 3.0194], [0.3824, -0.0968], [1.8684, 0.7268], [0.5388, 1.4363], [2.5674, -4.2026], [5.2864, 1.4368], [-1.3078, 1.6107], [-4.5276, 1.5542], [5.6354, -3.8754], [0.0708, 3.4868], [-5.1924, -0.1699], [3.1265, -2.4366], [0.073, 2.3592], [-0.3192, -4.1672], [3.1601, -0.4159], [-3.4161, 1.8074], [-3.38, 6.7945], [-0.9023, -0.2223], [2.0587, 0.4771]],
       },
     ];
     for (const c of cases) {
@@ -230,6 +235,39 @@ describe('simulazione e orientamento', () => {
         expect(p.z).toBeCloseTo(z, 3);
       });
     }
+  });
+
+  describe('partenza dei lanci grandi', () => {
+    const six = (n) => Array.from({ length: n }, (_, i) => TYPES[i % 6]);
+    const starts = (list, seed) => { const sim = simulate(list, seed); return list.map((_, i) => frameOf(sim, i, 0).p); };
+    // Quanto i punti di partenza pendono da una parte sola: 1 se sono tutti nella stessa direzione dal centro,
+    // vicino a 0 se sono distribuiti in modo bilanciato (lunghezza media dei versori).
+    const lean = (ps) => { let x = 0, z = 0; for (const p of ps) { const l = Math.hypot(p.x, p.z) || 1; x += p.x / l; z += p.z / l; } return Math.hypot(x, z) / ps.length; };
+
+    it('fino a SPREAD_FROM dadi la partenza è da un lato solo, da più dadi in su da più lati', () => {
+      // Lancio piccolo: una colonna sola, tutta dallo stesso lato dell'asse x.
+      for (const seed of [11, 12, 13]) expect(new Set(starts(six(SPREAD_FROM), seed).map((p) => Math.sign(p.x))).size, `seed ${seed}`).toBe(1);
+      // Lancio grande: tre gruppi a 120° l'uno dall'altro, quindi la partenza non pende da nessuna parte.
+      for (const seed of [1, 22, 333]) {
+        expect(lean(starts(six(SPREAD_FROM), seed)), `piccolo, seed ${seed}`).toBeGreaterThan(0.6);
+        expect(lean(starts(six(30), seed)), `grande, seed ${seed}`).toBeLessThan(0.35);
+      }
+    });
+
+    it('i dadi non partono uno dentro l\'altro (distanza minima tra i centri)', () => {
+      for (const n of [20, 30, 40]) for (const seed of [5, 66, 777]) {
+        const p = starts(six(n), seed);
+        let min = Infinity;
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) min = Math.min(min, p[i].distanceTo(p[j]));
+        expect(min, `${n} dadi, seed ${seed}`).toBeGreaterThan(2.0);
+      }
+    });
+
+    it('i valori restano quelli del server anche con la partenza a più lati', () => {
+      const list = six(30), rnd = mulberry32(31337), values = list.map((t) => 1 + Math.floor(rnd() * SIDES[t]));
+      const sim = simulate(list, 2026), qRs = plan(list, values, sim);
+      list.forEach((t, i) => expect(shownValue(t, sim, i, qRs[i])).toBe(values[i]));
+    }, 60000);
   });
 
   it('con origine: parte da lì (riportata dentro), si ferma dentro, plan() senza discrepanze', () => {

@@ -21,6 +21,15 @@ export function insideTray(x, z, margin = 0) {
 // Cambiarli cambia tutte le traiettorie: va aggiornato il test di regressione della fisica.
 export const FLOOR = { friction: 0.42, restitution: 0.5 };
 
+// Da più di SPREAD_FROM dadi la partenza non è più una colonna sola su un lato: i dadi partono da uno, due o tre lati
+// (a gruppi di circa SPREAD_GROUP) e puntano a punti diversi del tavolo, così non si ammassano contro la parete opposta.
+// Fino a SPREAD_FROM dadi il lancio è quello di sempre.
+export const SPREAD_FROM = 9;
+export const SPREAD_GROUP = 10;
+const SPAWN_GAP = 2.8; // distanza tra i dadi alla partenza: il più grande (d4) misura 2,5
+const AIM = 0.85;      // raggio (in apotemi) del disco centrale in cui cadono i punti verso cui sono lanciati i dadi
+const SPEED = [6, 7];  // velocità orizzontale: minimo e ampiezza
+
 export function mulberry32(a) {
   return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
@@ -59,7 +68,10 @@ export function simulate(list, seed, opts = {}) {
   }
 
   // Partenza da un lato, in colonne verso il centro: dove l'esagono si stringe verso il vertice non ci si spinge.
-  const side = origin ? 1 : (rng() < 0.5 ? -1 : 1);
+  const spread = !origin && list.length > SPREAD_FROM;
+  const groups = spread ? Math.min(3, Math.ceil(list.length / SPREAD_GROUP)) : 1;
+  const firstSide = spread ? Math.floor(rng() * 6) : 0;
+  const side = origin || spread ? 1 : (rng() < 0.5 ? -1 : 1);
   const zSpread = 2.3, D = 2 * TRAY.A;
   let step = 0;
   const sounds = [];
@@ -68,8 +80,20 @@ export function simulate(list, seed, opts = {}) {
     const shape = new CANNON.ConvexPolyhedron({ vertices: proto.V.map((v) => new CANNON.Vec3(v.x, v.y, v.z)), faces: proto.faces.map((f) => f.idx.slice()) });
     const b = new CANNON.Body({ mass: 1, shape, material: mDie, linearDamping: 0.1, angularDamping: 0.12, sleepSpeedLimit: 0.25, sleepTimeLimit: 0.35 });
     const layer = Math.floor(i / 12), r = i % 12, col = r % 3, row = Math.floor(r / 3);
-    let z = 0;
-    if (origin) {
+    let z = 0, aim = null;
+    if (spread) {
+      // Il gruppo g parte dal lato firstSide + g * 6/groups (lati opposti con due gruppi, uno sì e uno no con tre),
+      // in celle da SPAWN_GAP: tre in fila lungo la parete, due verso il centro, poi a strati in altezza.
+      const g = i % groups, k = Math.floor(i / groups);
+      const a = TRAY_SIDES[(firstSide + g * (6 / groups)) % 6], ux = Math.cos(a), uz = Math.sin(a);
+      const c = k % 3, rr = Math.floor(k / 3) % 2, lay = Math.floor(k / 6);
+      const along = (c - 1) * SPAWN_GAP + (rng() - 0.5) * 0.4, inward = TRAY.A - 1.9 - rr * SPAWN_GAP + (rng() - 0.5) * 0.4;
+      const x = ux * inward - uz * along, zz = uz * inward + ux * along;
+      b.position.set(x, 2.2 + lay * 2.6 + rng() * 0.6, zz);
+      // Punto del tavolo verso cui il dado è lanciato: sparso nel disco centrale, non sempre contro la parete opposta.
+      const rho = TRAY.A * AIM * Math.sqrt(rng()), phi = rng() * 2 * Math.PI;
+      aim = { x: rho * Math.cos(phi) - x, z: rho * Math.sin(phi) - zz };
+    } else if (origin) {
       b.position.set(origin.x, 2.4 + rng() * 0.6, origin.z);
     } else {
       z = (list.length <= 3 ? (rng() - 0.5) * D * 0.4 : (row - 1.5) * zSpread) + (rng() - 0.5) * 0.4;
@@ -83,6 +107,9 @@ export function simulate(list, seed, opts = {}) {
       const speed = 6 + rng() * 5, up = 3 + rng() * 3;
       if (!insideTray(origin.x, origin.z, 3)) a = Math.atan2(-origin.z, -origin.x) + (rng() - 0.5) * (Math.PI / 2);
       b.velocity.set(Math.cos(a) * speed, up, Math.sin(a) * speed);
+    } else if (aim) {
+      const len = Math.hypot(aim.x, aim.z) || 1, speed = SPEED[0] + rng() * SPEED[1];
+      b.velocity.set((aim.x / len) * speed, 1 + rng() * 3, (aim.z / len) * speed);
     } else {
       b.velocity.set(-side * (13 + rng() * 9), 1 + rng() * 3, (rng() - 0.5) * 9 - z * 0.5);
     }
