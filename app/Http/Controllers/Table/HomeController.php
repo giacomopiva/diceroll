@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Table;
 
 use App\Http\Controllers\Controller;
+use App\Models\Roll;
 use App\Services\RoomService;
 use App\Services\SettingsService;
 use Illuminate\Contracts\View\View;
@@ -18,6 +19,12 @@ class HomeController extends Controller
         return view('table.home', [
             'full' => ! $this->rooms->canCreateRoom(),
             'limitMessage' => $this->settings->roomsLimitMessage(),
+            // Numeri citati nel testo della pagina: vengono dalle impostazioni, mai scritti a mano.
+            'expire' => $this->settings->expireLabel(),
+            'maxParticipants' => $this->settings->maxParticipants(),
+            'retentionDays' => (int) config('tavolo.retention_days'),
+            'historyLimit' => $this->settings->historyLimit(),
+            'maxDice' => Roll::MAX_DICE,
         ]);
     }
 

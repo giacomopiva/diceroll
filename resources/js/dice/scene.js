@@ -296,7 +296,7 @@ function pavingMaterial() {
  */
 export function createScene(canvas, stage, opts = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, opts.pixelRatioMax || 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.NeutralToneMapping;
@@ -547,8 +547,9 @@ export function createScene(canvas, stage, opts = {}) {
     }
   }
 
-  let last = performance.now(), frameCount = 0, acc = 0;
+  let last = performance.now(), frameCount = 0, acc = 0, paused = false;
   function loop(now) {
+    if (paused) return;
     requestAnimationFrame(loop);
     const dt = now - last; last = now; frameCount++; acc += dt;
     if (acc >= 500) {
@@ -563,5 +564,12 @@ export function createScene(canvas, stage, opts = {}) {
   resize();
   requestAnimationFrame(loop);
 
-  return { play, clear: clearDice, pick, positionOf, setHover };
+  // Sospende (o riprende) il rendering, per esempio quando la scena esce dallo schermo: da ferma non è in coda.
+  function setPaused(p) {
+    if (p === paused) return;
+    paused = p;
+    if (!p) { last = performance.now(); requestAnimationFrame(loop); }
+  }
+
+  return { play, clear: clearDice, pick, positionOf, setHover, setPaused };
 }

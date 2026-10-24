@@ -5,9 +5,20 @@
   "_presets-C0xyDY5r.js": {
     "file": "assets/presets-C0xyDY5r.js"
   },
+  "_scene-GKsTBsts.js": {
+    "file": "assets/scene-GKsTBsts.js",
+    "imports": [
+      "_presets-C0xyDY5r.js"
+    ]
+  },
   "resources/css/app.css": {
     "file": "assets/app-CsdbagXp.css",
     "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/css/landing.css": {
+    "file": "assets/landing-DGTG9ac1.css",
+    "src": "resources/css/landing.css",
     "isEntry": true
   },
   "resources/css/table.css": {
@@ -31,12 +42,33 @@
       "_presets-C0xyDY5r.js"
     ]
   },
+  "resources/js/landing-stage.js": {
+    "file": "assets/landing-stage-R-qOSGiW.js",
+    "src": "resources/js/landing-stage.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_scene-GKsTBsts.js",
+      "_presets-C0xyDY5r.js"
+    ]
+  },
+  "resources/js/landing.js": {
+    "file": "assets/landing-Bq7DPy40.js",
+    "src": "resources/js/landing.js",
+    "isEntry": true,
+    "imports": [
+      "_presets-C0xyDY5r.js"
+    ],
+    "dynamicImports": [
+      "resources/js/landing-stage.js"
+    ]
+  },
   "resources/js/table.js": {
-    "file": "assets/table-CqFDo9Y_.js",
+    "file": "assets/table-Cw3wle_Q.js",
     "src": "resources/js/table.js",
     "isEntry": true,
     "imports": [
       "_echo-B1nH64_W.js",
+      "_scene-GKsTBsts.js",
       "_presets-C0xyDY5r.js"
     ]
   }
