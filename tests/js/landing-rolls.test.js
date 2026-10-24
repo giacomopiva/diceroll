@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { PROTOS, SIDES, resultFace } from '../../resources/js/dice/geometry.js';
-import { plan, simulate } from '../../resources/js/dice/physics.js';
+import { insideTray, plan, simulate } from '../../resources/js/dice/physics.js';
 import { DICE, OPENING, TABLE, formula } from '../../resources/js/landing-rolls.js';
 
 // Ogni lancio della demo: valori nel range del tipo, seed valido, e la faccia che il dado disegnato
@@ -29,6 +29,14 @@ describe('lanci fissi della landing', () => {
       q.set(F[o + 3], F[o + 4], F[o + 5], F[o + 6]).multiply(qRs[i]);
       expect(PROTOS[type].faces[resultFace(PROTOS[type], q)].value).toBe(r.values[i]);
     });
+  });
+
+  it('i dadi dei tre giocatori si fermano affiancati, non uno sull\'altro', () => {
+    const rest = TABLE.flatMap((r) => { const sim = simulate(r.list, r.seed); return r.list.map((_, i) => { const F = sim.frames[i], o = (sim.steps - 1) * 7; return { who: r.who, x: F[o], z: F[o + 2] }; }); });
+    rest.forEach((a) => expect(insideTray(a.x, a.z, 1.2), a.who).toBe(true));
+    for (let i = 0; i < rest.length; i++) for (let j = i + 1; j < rest.length; j++) {
+      expect(Math.hypot(rest[i].x - rest[j].x, rest[i].z - rest[j].z), `${rest[i].who} e ${rest[j].who}`).toBeGreaterThan(2.4);
+    }
   });
 
   it('il totale di ogni giocatore coincide con quello mostrato nella pagina (21, 10 e 9)', () => {

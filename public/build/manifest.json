@@ -43,7 +43,7 @@
     ]
   },
   "resources/js/landing-stage.js": {
-    "file": "assets/landing-stage-DQtSRGQB.js",
+    "file": "assets/landing-stage-B61ssiWm.js",
     "src": "resources/js/landing-stage.js",
     "isDynamicEntry": true,
     "imports": [
@@ -52,7 +52,7 @@
     ]
   },
   "resources/js/landing.js": {
-    "file": "assets/landing-CMria63v.js",
+    "file": "assets/landing-B5B5URAN.js",
     "src": "resources/js/landing.js",
     "isEntry": true,
     "imports": [

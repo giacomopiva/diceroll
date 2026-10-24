@@ -10,10 +10,12 @@ export const COLORS = {
 export const OPENING = { who: 'Elara', color: COLORS.rubino, list: ['d20'], values: [17], seed: 20261024 };
 
 // Terzo passo: tre giocatori lanciano uno dopo l'altro, e i lanci restano insieme sul tavolo.
+// Nel tavolo vero ogni lancio ha la sua fisica e i dadi di lanci diversi possono sovrapporsi: qui i seed sono scelti
+// (cercando) perché i dadi dei tre lanci si fermino affiancati, a più di 2,7 di distanza.
 export const TABLE = [
-  { who: 'Elara', color: COLORS.rubino, list: ['d6', 'd20'], values: [4, 17], seed: 7311 },
-  { who: 'Thorin', color: COLORS.zaffiro, list: ['d8', 'd8'], values: [3, 7], seed: 90417 },
-  { who: 'Mira', color: COLORS.smeraldo, list: ['d12'], values: [9], seed: 55021 },
+  { who: 'Elara', color: COLORS.rubino, list: ['d6', 'd20'], values: [4, 17], seed: 100024 },
+  { who: 'Thorin', color: COLORS.zaffiro, list: ['d8', 'd8'], values: [3, 7], seed: 200010 },
+  { who: 'Mira', color: COLORS.smeraldo, list: ['d12'], values: [9], seed: 300024 },
 ];
 
 // Sezione dei dadi: a ogni clic sul nome parte il lancio successivo di quel tipo.

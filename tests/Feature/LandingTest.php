@@ -98,3 +98,9 @@ test('la pagina non usa monospace né emoji e ogni sezione ha un titolo', functi
         ->and(substr_count($html, '<h2'))->toBeGreaterThanOrEqual(substr_count($html, '<section class="how')
             + substr_count($html, '<section class="dice') + substr_count($html, '<section class="faq') + substr_count($html, '<section class="cta'));
 });
+
+test('il piè di pagina porta il credito con il link al sito dell\'autore', function () {
+    $this->get('/')->assertOk()
+        ->assertSee('Realizzato da')
+        ->assertSee('<a href="https://www.giacomopiva.com" rel="noopener">Giacomo Piva</a>', false);
+});

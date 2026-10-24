@@ -143,8 +143,8 @@
       <p class="dnote-out" id="dnoteOut" aria-live="polite"></p>
       <p class="body hint reveal">Tocca un dado per lanciarlo sul tavolo.</p>
       <figure class="shot reveal">
-        <img src="{{ asset('images/landing/table-30.jpg') }}" width="1400" height="1120" loading="lazy" decoding="async" alt="Il tavolo di pietra con trenta dadi rossi di sei tipi, dopo un solo lancio">
-        <figcaption>Trenta dadi in un solo lancio, sul tavolo vero.</figcaption>
+        <img src="{{ asset('images/landing/table-six.jpg') }}" width="1400" height="1134" loading="lazy" decoding="async" alt="Il tavolo di pietra con i dadi di sei giocatori, ognuno del suo colore, fermi uno accanto all'altro">
+        <figcaption>Sei giocatori, due o tre dadi a testa: il tavolo dopo un giro di lanci.</figcaption>
       </figure>
     </section>
   </div>
@@ -262,7 +262,7 @@
     <a href="#dadi">I dadi</a>
     <a href="#domande">Domande</a>
   </nav>
-  <p>2026</p>
+  <p>2026. Realizzato da <a href="https://www.giacomopiva.com" rel="noopener">Giacomo Piva</a></p>
 </footer>
 </body>
 </html>
