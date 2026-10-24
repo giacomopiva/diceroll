@@ -71,9 +71,9 @@ Route::get('/blog/articolo', function () {
  */
 Auth::routes([
     'reset' => true, // lasciare sempre a true
-    'register' => true, // registrazione
-    'confirm' => true, // conferma registrazione
-    'verify' => true,  // verifica email e attivazione
+    'register' => false, // registrazione
+    'confirm' => false, // conferma registrazione
+    'verify' => false,  // verifica email e attivazione
 ]);
 
 // Rotta personalizzata per il logout
