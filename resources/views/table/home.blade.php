@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>Tavolo dei Dadi: i dadi del gioco di ruolo, insieme online</title>
+@include('table.partials.icons')
 <meta name="description" content="Un tavolo virtuale per i dadi del gioco di ruolo: apri un link e tutto il gruppo vede ogni lancio in tempo reale. Senza registrazione, con dadi 3D.">
 <meta name="theme-color" content="#121416">
 <link rel="canonical" href="{{ route('home') }}">

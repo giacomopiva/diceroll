@@ -104,3 +104,20 @@ test('il piè di pagina porta il credito con il link al sito dell\'autore', func
         ->assertSee('Realizzato da')
         ->assertSee('<a href="https://www.giacomopiva.com" rel="noopener">Giacomo Piva</a>', false);
 });
+
+test('landing e pagine del tavolo hanno le icone, e i file esistono', function () {
+    $room = Room::factory()->create();
+
+    foreach (['/', '/t/'.$room->code] as $url) {
+        $this->get($url)->assertOk()
+            ->assertSee('<link rel="icon" href="'.asset('favicon.ico').'" sizes="any">', false)
+            ->assertSee('<link rel="icon" href="'.asset('favicon.svg').'" type="image/svg+xml">', false)
+            ->assertSee('<link rel="apple-touch-icon" href="'.asset('apple-touch-icon.png').'">', false)
+            ->assertSee('<link rel="manifest" href="'.asset('site.webmanifest').'">', false);
+    }
+    foreach (['favicon.ico', 'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png', 'site.webmanifest'] as $file) {
+        expect(filesize(public_path($file)))->toBeGreaterThan(0);
+    }
+    $manifest = json_decode(file_get_contents(public_path('site.webmanifest')), true);
+    expect($manifest['name'])->toBe('Tavolo dei Dadi')->and($manifest['icons'])->toHaveCount(2);
+});

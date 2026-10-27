@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>@yield('title', 'Tavolo dei Dadi')</title>
+@include('table.partials.icons')
+<meta name="theme-color" content="#121416">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700;800&family=Alegreya+Sans+SC:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
