@@ -316,3 +316,29 @@ describe('simulazione e orientamento', () => {
     expect(out.outside).toBe(0);
   }, 120000);
 });
+
+describe('numerazione come sui dadi veri', () => {
+  const neighbours = (proto, i) => proto.faces
+    .map((g, j) => ({ g, j }))
+    .filter(({ g, j }) => j !== i && g.idx.filter((v) => proto.faces[i].idx.includes(v)).length === 2)
+    .map(({ g }) => g.value);
+
+  it.each(['d6', 'd8', 'd12', 'd20'])('%s: facce opposte sommano a n+1', (t) => {
+    const p = PROTOS[t];
+    p.faces.forEach((f) => {
+      const o = p.faces.find((g) => g.n.dot(f.n) < -0.999);
+      expect(f.value + o.value).toBe(SIDES[t] + 1);
+    });
+  });
+
+  it('d20: il 20 confina con 2, 8 e 14', () => {
+    const p = PROTOS.d20;
+    const i = p.faces.findIndex((f) => f.value === 20);
+    expect(neighbours(p, i).sort((a, b) => a - b)).toEqual([2, 8, 14]);
+  });
+
+  it('d20: nessuna faccia confina con un numero a distanza 2 o meno', () => {
+    const p = PROTOS.d20;
+    p.faces.forEach((f, i) => neighbours(p, i).forEach((v) => expect(Math.abs(v - f.value)).toBeGreaterThan(2)));
+  });
+});

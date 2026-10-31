@@ -223,10 +223,11 @@ test('l\'elenco tavoli filtra per stato', function () {
     $open = Room::factory()->create(['last_activity_at' => now()]);
     $old = Room::factory()->create(['last_activity_at' => now()->subDays(2)]);
 
-    $this->get('/admin/tables')->assertSee($open->code)->assertSee($old->code);
+    $this->get('/admin/tables')->assertSee($open->code)->assertDontSee($old->code);
+    $this->get('/admin/tables?stato=tutti')->assertSee($open->code)->assertSee($old->code);
     $this->get('/admin/tables?stato=aperti')->assertSee($open->code)->assertDontSee($old->code);
     $this->get('/admin/tables?stato=scaduti')->assertSee($old->code)->assertDontSee($open->code);
-    $this->get('/admin/tables?stato=boh')->assertSee($open->code)->assertSee($old->code);
+    $this->get('/admin/tables?stato=boh')->assertSee($open->code)->assertDontSee($old->code);
 });
 
 test('il dettaglio di un tavolo mostra giocatori e storico completo dei lanci', function () {

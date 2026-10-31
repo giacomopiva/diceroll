@@ -185,11 +185,12 @@
                     </div>
                     <div class="table-responsive">
                         <table class="table table-vcenter card-table">
-                            <thead><tr><th>Codice</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Ultima attività</th></tr></thead>
+                            <thead><tr><th>Codice</th><th>Creato da</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Ultima attività</th></tr></thead>
                             <tbody>
                                 @forelse ($openRooms as $room)
                                     <tr>
                                         <td><a href="{{ route('admin.room.show', $room) }}" class="font-monospace">{{ $room->code }}</a></td>
+                                        <td>{{ $room->user?->name ?? 'guest' }}</td>
                                         <td>
                                             @if ($room->online_count > 0)<span class="badge bg-green-lt text-green">{{ $room->online_count }} online</span>@endif
                                             <span class="text-secondary small">{{ $room->participants_count }} in totale</span>
@@ -198,7 +199,7 @@
                                         <td class="text-secondary">{{ $room->last_activity_at->locale('it')->diffForHumans() }}</td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="4" class="text-secondary text-center py-4">Nessun tavolo aperto.</td></tr>
+                                    <tr><td colspan="5" class="text-secondary text-center py-4">Nessun tavolo aperto.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>

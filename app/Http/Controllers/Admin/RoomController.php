@@ -12,10 +12,10 @@ class RoomController extends AdminController
 {
     public function __construct(private StatsService $stats) {}
 
-    /** Elenco dei tavoli, filtrabile per stato (aperti, scaduti, tutti). */
+    /** Elenco dei tavoli, filtrabile per stato (aperti per default, scaduti, tutti). */
     public function index(Request $request): View
     {
-        $status = in_array($request->query('stato'), ['aperti', 'scaduti'], true) ? $request->query('stato') : 'tutti';
+        $status = in_array($request->query('stato'), ['tutti', 'scaduti'], true) ? $request->query('stato') : 'aperti';
 
         $query = $this->stats->withCounts(Room::query())->with('user')->orderByDesc('last_activity_at');
         if ($status === 'aperti') {

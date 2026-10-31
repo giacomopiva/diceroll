@@ -11,8 +11,8 @@
             </div>
             <div class="col-auto ms-auto d-print-none">
                 <div class="btn-group" role="group" aria-label="Filtro per stato">
-                    <a href="{{ route('admin.room.index') }}" class="btn {{ $status === 'tutti' ? 'btn-primary' : 'btn-outline-primary' }}">Tutti</a>
-                    <a href="{{ route('admin.room.index', ['stato' => 'aperti']) }}" class="btn {{ $status === 'aperti' ? 'btn-primary' : 'btn-outline-primary' }}">Aperti ({{ $counts['aperti'] }})</a>
+                    <a href="{{ route('admin.room.index', ['stato' => 'tutti']) }}" class="btn {{ $status === 'tutti' ? 'btn-primary' : 'btn-outline-primary' }}">Tutti</a>
+                    <a href="{{ route('admin.room.index') }}" class="btn {{ $status === 'aperti' ? 'btn-primary' : 'btn-outline-primary' }}">Aperti ({{ $counts['aperti'] }})</a>
                     <a href="{{ route('admin.room.index', ['stato' => 'scaduti']) }}" class="btn {{ $status === 'scaduti' ? 'btn-primary' : 'btn-outline-primary' }}">Scaduti ({{ $counts['scaduti'] }})</a>
                 </div>
             </div>
@@ -29,12 +29,13 @@
             <div class="table-responsive">
                 <table class="table table-vcenter card-table">
                     <thead>
-                        <tr><th>Codice</th><th>Stato</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Creato</th><th>Attivo da</th><th>Ultimo lancio</th><th>Inattivo da</th><th></th></tr>
+                        <tr><th>Codice</th><th>Creato da</th><th>Stato</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Creato</th><th>Attivo da</th><th>Ultimo lancio</th><th>Inattivo da</th><th></th></tr>
                     </thead>
                     <tbody>
                         @forelse ($rooms as $room)
                             <tr>
                                 <td><a href="{{ route('admin.room.show', $room) }}" class="font-monospace">{{ $room->code }}</a></td>
+                                <td>{{ $room->user?->name ?? 'guest' }}</td>
                                 <td>
                                     @if ($room->isExpired())
                                         <span class="badge bg-secondary-lt text-secondary">Scaduto</span>
@@ -61,7 +62,7 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="9" class="text-center text-secondary py-4">Nessun tavolo.</td></tr>
+                            <tr><td colspan="10" class="text-center text-secondary py-4">Nessun tavolo.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

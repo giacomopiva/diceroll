@@ -38,6 +38,8 @@
                     <div class="card-header"><h3 class="card-title">Dettagli</h3></div>
                     <div class="card-body">
                         <dl class="row mb-0">
+                            <dt class="col-5">Creato da</dt>
+                            <dd class="col-7">{{ $room->user?->name ?? 'guest' }}</dd>
                             <dt class="col-5">Creato</dt>
                             <dd class="col-7">{{ $room->created_at->locale('it')->isoFormat('D MMM YYYY HH:mm') }}</dd>
                             <dt class="col-5">Ultima attività</dt>

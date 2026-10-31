@@ -162,7 +162,7 @@ class StatsService
     /** @return Collection<int, Room> */
     public function openRooms(int $limit = 15): Collection
     {
-        return $this->withCounts(Room::active())->orderByDesc('last_activity_at')->limit($limit)->get();
+        return $this->withCounts(Room::active())->with('user:id,name')->orderByDesc('last_activity_at')->limit($limit)->get();
     }
 
     /** @return Collection<int, Roll> */

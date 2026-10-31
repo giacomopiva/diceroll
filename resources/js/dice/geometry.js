@@ -72,23 +72,25 @@ export function findFaces(V) {
   return faces;
 }
 
+// Valori per faccia, nell'ordine di findFaces. Come sui dadi veri i numeri vicini stanno su facce
+// lontane: facce opposte che sommano a n+1 (sul d10 poli dispari/pari), sul d20 il 20 confina con 2, 8, 14.
+const FACE_VALUES = {
+  d6:  [1, 3, 5, 2, 4, 6],
+  d8:  [6, 1, 2, 5, 4, 7, 8, 3],
+  d10: [1, 9, 5, 7, 3, 4, 8, 2, 10, 6],
+  d12: [12, 3, 9, 6, 2, 8, 11, 4, 5, 7, 10, 1],
+  d20: [11, 4, 19, 1, 13, 6, 14, 9, 18, 5, 20, 16, 2, 8, 12, 17, 7, 3, 15, 10],
+};
+
 function assignValues(proto) {
-  const F = proto.faces, n = F.length;
+  const F = proto.faces;
   if (proto.type === 'd4') {
     // Sul d4 i numeri stanno sui vertici: il risultato è il vertice in alto,
     // cioè quello opposto alla faccia appoggiata sul tavolo.
     F.forEach((f) => { f.value = [0, 1, 2, 3].find((i) => !f.idx.includes(i)) + 1; });
     return;
   }
-  const order = F.map((_, i) => i).sort((p, q) => (F[q].n.y - F[p].n.y) || (Math.atan2(F[p].n.z, F[p].n.x) - Math.atan2(F[q].n.z, F[q].n.x)));
-  let next = 1;
-  for (const i of order) {
-    if (F[i].value) continue;
-    F[i].value = next;
-    const j = F.findIndex((g) => g.n.dot(F[i].n) < -0.999);
-    if (j >= 0 && !F[j].value) F[j].value = n + 1 - next; // facce opposte sommano a n+1
-    next++;
-  }
+  F.forEach((f, i) => { f.value = FACE_VALUES[proto.type][i]; });
 }
 
 function faceFrame(proto, f) {
