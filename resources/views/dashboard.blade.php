@@ -1,6 +1,9 @@
 @extends('layouts.admin.app')
 
 @php
+    // La stessa dashboard serve l'admin (tutti i tavoli) e l'utente (solo i suoi): $scope è 'admin' o 'user'.
+    $admin = $scope === 'admin';
+    $roomUrl = fn ($room) => route($scope.'.room.show', $room);
     /** Freccia di variazione percentuale accanto a un KPI. */
     $deltaBadge = function (?float $d, string $vs) {
         if ($d === null) {
@@ -38,12 +41,12 @@
     <div class="container-xl">
         <div class="row g-2 align-items-center">
             <div class="col">
-                <div class="page-pretitle">Admin</div>
+                <div class="page-pretitle">{{ $admin ? 'Admin' : 'Area utente' }}</div>
                 <h2 class="page-title">Dashboard</h2>
             </div>
             <div class="col-auto ms-auto d-print-none">
-                <a href="{{ route('admin.room.index') }}" class="btn btn-primary">
-                    <i class="ti ti-dice me-1"></i>Tutti i tavoli
+                <a href="{{ route($scope.'.room.index') }}" class="btn btn-primary">
+                    <i class="ti ti-dice me-1"></i>Tavoli
                 </a>
             </div>
         </div>
@@ -181,16 +184,16 @@
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title"><i class="ti ti-door me-2 text-blue"></i>Tavoli aperti</h3>
-                        <div class="card-options"><a href="{{ route('admin.room.index', ['stato' => 'aperti']) }}" class="small">Vedi tutti</a></div>
+                        <div class="card-options"><a href="{{ route($scope.'.room.index') }}" class="small">Vedi tutti</a></div>
                     </div>
                     <div class="table-responsive">
                         <table class="table table-vcenter card-table">
-                            <thead><tr><th>Codice</th><th>Creato da</th><th>Giocatori</th><th class="text-end">Lanci</th><th>Ultima attività</th></tr></thead>
+                            <thead><tr><th>Codice</th>@if ($admin)<th>Creato da</th>@endif<th>Giocatori</th><th class="text-end">Lanci</th><th>Ultima attività</th></tr></thead>
                             <tbody>
                                 @forelse ($openRooms as $room)
                                     <tr>
-                                        <td><a href="{{ route('admin.room.show', $room) }}" class="font-monospace">{{ $room->code }}</a></td>
-                                        <td>{{ $room->user?->name ?? 'guest' }}</td>
+                                        <td><a href="{{ $roomUrl($room) }}" class="font-monospace">{{ $room->code }}</a></td>
+                                        @if ($admin)<td>{{ $room->user?->name ?? 'guest' }}</td>@endif
                                         <td>
                                             @if ($room->online_count > 0)<span class="badge bg-green-lt text-green">{{ $room->online_count }} online</span>@endif
                                             <span class="text-secondary small">{{ $room->participants_count }} in totale</span>
@@ -199,7 +202,7 @@
                                         <td class="text-secondary">{{ $room->last_activity_at->locale('it')->diffForHumans() }}</td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="5" class="text-secondary text-center py-4">Nessun tavolo aperto.</td></tr>
+                                    <tr><td colspan="{{ $admin ? 5 : 4 }}" class="text-secondary text-center py-4">Nessun tavolo aperto.</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -221,7 +224,7 @@
                                             <span class="badge" style="background:{{ $roll->participant->color }};width:.8rem;height:.8rem;padding:0;border-radius:50%;vertical-align:-1px"></span>
                                             {{ $roll->participant->nickname }}
                                         </td>
-                                        <td><a href="{{ route('admin.room.show', $roll->room) }}" class="font-monospace small">{{ $roll->room->code }}</a></td>
+                                        <td><a href="{{ $roomUrl($roll->room) }}" class="font-monospace small">{{ $roll->room->code }}</a></td>
                                         <td class="font-monospace small">{{ $roll->formula() }}</td>
                                         <td class="text-end fw-bold">{{ $roll->total }}</td>
                                         <td class="text-secondary">{{ $roll->created_at->locale('it')->diffForHumans() }}</td>

@@ -134,6 +134,13 @@ Route::get('/user', function () {
 Route::middleware(['auth', 'role:user', 'status'])->prefix('user')->name('user.')->group(function () {
     Route::get('/home', [App\Http\Controllers\User\HomeController::class, 'index'])->name('home');
 
+    // Tavoli dell'utente: elenco, dettaglio, eliminazione (come l'admin, solo i suoi)
+    Route::get('/tables', [App\Http\Controllers\User\RoomController::class, 'index'])->name('room.index');
+    Route::get('/tables/{room}', [App\Http\Controllers\User\RoomController::class, 'show'])
+        ->where('room', Room::CODE_PATTERN)->name('room.show');
+    Route::delete('/tables/{room}', [App\Http\Controllers\User\RoomController::class, 'destroy'])
+        ->where('room', Room::CODE_PATTERN)->name('room.destroy');
+
     // Regole dei tavoli creati dall'utente (sovrascrivono quelle dell'admin)
     Route::get('/settings', [App\Http\Controllers\User\SettingsController::class, 'edit'])->name('settings.edit');
     Route::put('/settings', [App\Http\Controllers\User\SettingsController::class, 'update'])->name('settings.update');

@@ -139,13 +139,25 @@
                 {{-- User menu --}}
                 @role(['user'])
 
+                    {{-- Home --}}
                     <li class="nav-item">
                         <a class="nav-link {{ isSectionActive(['home'], 1) ? 'active' : '' }}"
                             href="{{ route('user.home') }}">
                             <span class="nav-link-icon d-md-none d-lg-inline-block">
-                                <i class="ti ti-home"></i>
+                                <i class="ti ti-layout-dashboard"></i>
                             </span>
-                            <span class="nav-link-title">Home</span>
+                            <span class="nav-link-title">Dashboard</span>
+                        </a>
+                    </li>
+
+                    {{-- Tavoli dei dadi --}}
+                    <li class="nav-item">
+                        <a class="nav-link {{ isSectionActive(['tables'], 1) ? 'active' : '' }}"
+                            href="{{ route('user.room.index') }}">
+                            <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                <i class="ti ti-dice"></i>
+                            </span>
+                            <span class="nav-link-title">Tavoli</span>
                         </a>
                     </li>
 

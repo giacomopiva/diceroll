@@ -6,7 +6,7 @@
     <div class="container-xl">
         <div class="row g-2 align-items-center">
             <div class="col">
-                <div class="page-pretitle"><a href="{{ route('admin.room.index') }}">Tavoli</a></div>
+                <div class="page-pretitle">{{ $scope === 'admin' ? 'Admin' : 'Area utente' }} · <a href="{{ route($scope.'.room.index') }}">Tavoli</a></div>
                 <h2 class="page-title font-monospace">
                     {{ $room->code }}
                     @if ($room->isExpired())
@@ -17,13 +17,13 @@
                 </h2>
             </div>
             <div class="col-auto ms-auto d-print-none">
-                <form method="post" action="{{ route('admin.room.destroy', $room) }}" class="d-inline"
+                <form method="post" action="{{ route($scope.'.room.destroy', $room) }}" class="d-inline"
                       onsubmit="return confirm('Eliminare il tavolo {{ $room->code }} con partecipanti e lanci? L\'azione è irreversibile.')">
                     @csrf
                     @method('DELETE')
                     <button type="submit" class="btn btn-outline-danger"><i class="ti ti-trash me-1"></i>Elimina</button>
                 </form>
-                <a href="{{ route('admin.room.index') }}" class="btn btn-outline-primary"><i class="ti ti-arrow-left me-1"></i>Tutti i tavoli</a>
+                <a href="{{ route($scope.'.room.index') }}" class="btn btn-outline-primary"><i class="ti ti-arrow-left me-1"></i>Tutti i tavoli</a>
             </div>
         </div>
     </div>
@@ -38,8 +38,10 @@
                     <div class="card-header"><h3 class="card-title">Dettagli</h3></div>
                     <div class="card-body">
                         <dl class="row mb-0">
-                            <dt class="col-5">Creato da</dt>
-                            <dd class="col-7">{{ $room->user?->name ?? 'guest' }}</dd>
+                            @if ($scope === 'admin')
+                                <dt class="col-5">Creato da</dt>
+                                <dd class="col-7">{{ $room->user?->name ?? 'guest' }}</dd>
+                            @endif
                             <dt class="col-5">Creato</dt>
                             <dd class="col-7">{{ $room->created_at->locale('it')->isoFormat('D MMM YYYY HH:mm') }}</dd>
                             <dt class="col-5">Ultima attività</dt>

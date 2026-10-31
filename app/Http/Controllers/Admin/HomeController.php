@@ -16,7 +16,8 @@ class HomeController extends AdminController
     {
         $dice = $this->stats->diceStats();
 
-        return view('admin.home', [
+        return view('dashboard', [
+            'scope' => 'admin',
             'kpis' => $this->stats->kpis(),
             'perDay' => $this->stats->perDay(14),
             'perHour' => $this->stats->perHour(30),

@@ -5,43 +5,80 @@ namespace App\Services;
 use App\Models\Participant;
 use App\Models\Roll;
 use App\Models\Room;
+use App\Models\User;
 use App\Support\ChiSquare;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Statistiche d'uso per la dashboard admin. Tutto in sola lettura sui dati del tavolo
- * (stanze, partecipanti, lanci); la parte più pesante (scansione di tutti i dadi) è in cache.
+ * Statistiche d'uso per la dashboard admin e per quella dell'utente (forUser: solo i suoi tavoli).
+ * Tutto in sola lettura sui dati del tavolo (stanze, partecipanti, lanci); la parte più pesante
+ * (scansione di tutti i dadi) è in cache.
  */
 class StatsService
 {
+    private ?User $user = null;
+
     public const DICE_CACHE_KEY = 'admin.stats.dice';
 
     public const DICE_CACHE_SECONDS = 300;
+
+    /** Le stesse statistiche, limitate ai tavoli creati dall'utente. */
+    public function forUser(User $user): static
+    {
+        $scoped = clone $this;
+        $scoped->user = $user;
+
+        return $scoped;
+    }
+
+    /** @return Builder<Room> */
+    private function rooms(): Builder
+    {
+        return Room::query()->when($this->user, fn ($q) => $q->where('user_id', $this->user->id));
+    }
+
+    /** @return Builder<Roll> */
+    private function rolls(): Builder
+    {
+        return Roll::query()->when($this->user, fn ($q) => $q->whereIn('room_id', Room::where('user_id', $this->user->id)->select('id')));
+    }
+
+    /** @return Builder<Participant> */
+    private function participants(): Builder
+    {
+        return Participant::query()->when($this->user, fn ($q) => $q->whereIn('room_id', Room::where('user_id', $this->user->id)->select('id')));
+    }
+
+    private function cacheKey(): string
+    {
+        return self::DICE_CACHE_KEY.($this->user ? '.user.'.$this->user->id : '');
+    }
 
     /** @return array<string, int|float|null> */
     public function kpis(): array
     {
         $today = now()->startOfDay();
-        $rollsToday = Roll::where('created_at', '>=', $today)->count();
-        $rollsYesterday = Roll::whereBetween('created_at', [$today->copy()->subDay(), $today])->count();
+        $rollsToday = $this->rolls()->where('created_at', '>=', $today)->count();
+        $rollsYesterday = $this->rolls()->whereBetween('created_at', [$today->copy()->subDay(), $today])->count();
 
-        $rolls7 = Roll::where('created_at', '>=', now()->subDays(7))->count();
-        $rollsPrev7 = Roll::whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
+        $rolls7 = $this->rolls()->where('created_at', '>=', now()->subDays(7))->count();
+        $rollsPrev7 = $this->rolls()->whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
 
-        $rooms7 = Room::where('created_at', '>=', now()->subDays(7))->count();
-        $roomsPrev7 = Room::whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
+        $rooms7 = $this->rooms()->where('created_at', '>=', now()->subDays(7))->count();
+        $roomsPrev7 = $this->rooms()->whereBetween('created_at', [now()->subDays(14), now()->subDays(7)])->count();
 
-        $roomsTotal = Room::count();
-        $rollsTotal = Roll::count();
+        $roomsTotal = $this->rooms()->count();
+        $rollsTotal = $this->rolls()->count();
 
         return [
-            'open_rooms' => Room::active()->count(),
-            'open_rooms_with_players' => Room::active()->whereHas('participants', fn ($q) => $q->online())->count(),
-            'online_players' => Participant::online()->count(),
+            'open_rooms' => $this->rooms()->active()->count(),
+            'open_rooms_with_players' => $this->rooms()->active()->whereHas('participants', fn ($q) => $q->online())->count(),
+            'online_players' => $this->participants()->online()->count(),
             'rolls_today' => $rollsToday,
             'rolls_today_delta' => $this->delta($rollsToday, $rollsYesterday),
             'rolls_7d' => $rolls7,
@@ -63,8 +100,8 @@ class StatsService
     public function perDay(int $days = 14): array
     {
         $start = now()->startOfDay()->subDays($days - 1);
-        $rolls = $this->countByDay(Roll::class, $start);
-        $rooms = $this->countByDay(Room::class, $start);
+        $rolls = $this->countByDay($this->rolls(), $start);
+        $rooms = $this->countByDay($this->rooms(), $start);
 
         $out = ['labels' => [], 'days' => [], 'rolls' => [], 'rooms' => []];
         for ($i = 0; $i < $days; $i++) {
@@ -90,7 +127,7 @@ class StatsService
             ? "CAST(strftime('%H', created_at) AS INTEGER)"
             : 'HOUR(created_at)';
 
-        $rows = Roll::where('created_at', '>=', now()->subDays($days))
+        $rows = $this->rolls()->where('created_at', '>=', now()->subDays($days))
             ->selectRaw("$expr as h, count(*) as n")
             ->groupBy('h')
             ->pluck('n', 'h');
@@ -106,13 +143,13 @@ class StatsService
      */
     public function diceStats(): array
     {
-        return Cache::remember(self::DICE_CACHE_KEY, self::DICE_CACHE_SECONDS, function () {
+        return Cache::remember($this->cacheKey(), self::DICE_CACHE_SECONDS, function () {
             $counts = [];
             foreach (Roll::SIDES as $type => $faces) {
                 $counts[$type] = array_fill(1, $faces, 0);
             }
 
-            foreach (Roll::query()->select(['id', 'dice', 'values'])->cursor() as $roll) {
+            foreach ($this->rolls()->select(['id', 'dice', 'values'])->cursor() as $roll) {
                 foreach ($roll->dice as $i => $type) {
                     $value = $roll->values[$i] ?? null;
                     if (isset($counts[$type][$value])) {
@@ -162,13 +199,13 @@ class StatsService
     /** @return Collection<int, Room> */
     public function openRooms(int $limit = 15): Collection
     {
-        return $this->withCounts(Room::active())->with('user:id,name')->orderByDesc('last_activity_at')->limit($limit)->get();
+        return $this->withCounts($this->rooms()->active())->with('user:id,name')->orderByDesc('last_activity_at')->limit($limit)->get();
     }
 
     /** @return Collection<int, Roll> */
     public function latestRolls(int $limit = 12): Collection
     {
-        return Roll::with(['participant', 'room'])->latest('id')->limit($limit)->get();
+        return $this->rolls()->with(['participant', 'room'])->latest('id')->limit($limit)->get();
     }
 
     /**
@@ -207,17 +244,17 @@ class StatsService
         }
 
         if ($kpis['rooms_total'] > 0) {
-            $empty = Room::doesntHave('rolls')->count();
+            $empty = $this->rooms()->doesntHave('rolls')->count();
             $out[] = ['icon' => 'ti-door-exit', 'color' => $empty / $kpis['rooms_total'] > 0.5 ? 'red' : 'azure', 'text' => round($empty / $kpis['rooms_total'] * 100).'% dei tavoli creati non ha mai avuto un lancio ('.$empty.' su '.$kpis['rooms_total'].').'];
 
-            $withPlayers = Room::has('participants')->count();
+            $withPlayers = $this->rooms()->has('participants')->count();
             if ($withPlayers > 0) {
-                $avg = round(Participant::count() / $withPlayers, 1);
+                $avg = round($this->participants()->count() / $withPlayers, 1);
                 $out[] = ['icon' => 'ti-users', 'color' => 'purple', 'text' => 'In media '.number_format($avg, 1, ',', '').' giocatori per tavolo (contando solo i tavoli con almeno un giocatore).'];
             }
         }
 
-        $longest = $this->withCounts(Room::query())->orderByDesc('rolls_count')->first();
+        $longest = $this->withCounts($this->rooms())->orderByDesc('rolls_count')->first();
         if ($longest && $longest->rolls_count > 0) {
             $out[] = ['icon' => 'ti-trophy', 'color' => 'yellow', 'text' => "Il tavolo più giocato è {$longest->code}, con ".$this->plural($longest->rolls_count, 'lancio', 'lanci').' e '.$this->plural($longest->participants_count, 'giocatore', 'giocatori').'.'];
         }
@@ -265,12 +302,12 @@ class StatsService
     }
 
     /**
-     * @param  class-string<Model>  $model
+     * @param  Builder<Model>  $query
      * @return array<string, int>
      */
-    private function countByDay(string $model, Carbon $since): array
+    private function countByDay(Builder $query, Carbon $since): array
     {
-        return $model::where('created_at', '>=', $since)
+        return $query->where('created_at', '>=', $since)
             ->selectRaw('DATE(created_at) as d, count(*) as n')
             ->groupBy('d')
             ->pluck('n', 'd')

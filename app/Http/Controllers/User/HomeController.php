@@ -2,31 +2,30 @@
 
 namespace App\Http\Controllers\User;
 
-use App\Services\RoomService;
-use App\Services\SettingsService;
+use App\Services\StatsService;
 use Illuminate\View\View;
 
 class HomeController extends UserController
 {
-    public function __construct(private RoomService $rooms, private SettingsService $settings) {}
+    public function __construct(private StatsService $stats) {}
 
     /**
-     * Display the user dashboard's home page.
-     *
-     * @return View A view for the user home page.
+     * Home dell'utente: la dashboard con le statistiche dei tavoli che ha creato.
      */
     public function index(): View
     {
-        $user = auth()->user();
+        $stats = $this->stats->forUser(auth()->user());
 
-        return view('user.home', [
-            // I tavoli non scaduti creati dall'utente, i più recenti per primi.
-            'rooms' => $user->rooms()->active()
-                ->withCount(['participants as online_count' => fn ($q) => $q->online()])
-                ->withCount('rolls')
-                ->orderByDesc('last_activity_at')->get(),
-            'canCreate' => $this->rooms->canCreateRoom(),
-            'limitMessage' => $this->settings->roomsLimitMessage(),
+        return view('dashboard', [
+            'scope' => 'user',
+            'kpis' => $stats->kpis(),
+            'perDay' => $stats->perDay(14),
+            'perHour' => $stats->perHour(30),
+            'dice' => $stats->diceStats(),
+            'insights' => $stats->insights(),
+            'openRooms' => $stats->openRooms(),
+            'latestRolls' => $stats->latestRolls(),
+            'stats' => $stats,
         ]);
     }
 }
